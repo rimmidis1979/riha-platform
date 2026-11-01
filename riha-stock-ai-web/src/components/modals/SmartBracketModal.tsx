@@ -131,3 +131,4 @@ export const SmartBracketModal: React.FC<Props> = ({
     </div>
   );
 };
+

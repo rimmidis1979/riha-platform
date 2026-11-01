@@ -181,3 +181,4 @@ echo "SUCCESS: All 12 container images built and pushed successfully!"
 echo "Registry: ${REGISTRY_PREFIX}"
 echo "Image Tag: ${IMAGE_TAG}"
 echo "=============================================================================="
+

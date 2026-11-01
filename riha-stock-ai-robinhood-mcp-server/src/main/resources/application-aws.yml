@@ -1,0 +1,5 @@
+spring:
+  config:
+    import:
+      - "optional:aws-parameterstore:/config/application/"
+      - "optional:aws-parameterstore:/config/${spring.application.name}/"

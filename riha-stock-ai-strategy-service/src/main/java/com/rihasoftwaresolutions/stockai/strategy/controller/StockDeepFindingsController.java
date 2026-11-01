@@ -48,3 +48,4 @@ public class StockDeepFindingsController {
         return ResponseEntity.ok(workflowCoordinator.getStrategyDetails(ticker));
     }
 }
+

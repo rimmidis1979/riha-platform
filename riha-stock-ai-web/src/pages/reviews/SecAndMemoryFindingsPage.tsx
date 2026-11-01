@@ -248,3 +248,4 @@ export const SecAndMemoryFindingsPage: React.FC<Props> = ({ ticker, onBack, onNa
     </div>
   );
 };
+

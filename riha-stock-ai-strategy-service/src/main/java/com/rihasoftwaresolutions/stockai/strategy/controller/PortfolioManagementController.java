@@ -57,3 +57,4 @@ public class PortfolioManagementController {
         return ResponseEntity.ok(workflowCoordinator.executeTradeOrToggleMode(request));
     }
 }
+

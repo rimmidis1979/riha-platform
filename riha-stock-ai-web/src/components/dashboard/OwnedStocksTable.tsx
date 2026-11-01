@@ -344,3 +344,4 @@ export const OwnedStocksTable: React.FC<Props> = ({
     </div>
   );
 };
+

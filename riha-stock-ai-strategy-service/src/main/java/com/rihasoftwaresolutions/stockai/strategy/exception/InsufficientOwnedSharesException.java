@@ -25,3 +25,4 @@ public class InsufficientOwnedSharesException extends RuntimeException {
         return ownedQuantity;
     }
 }
+

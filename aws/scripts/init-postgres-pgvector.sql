@@ -55,3 +55,4 @@ GRANT ALL PRIVILEGES ON DATABASE solar_critic_db TO vchub_user;
 GRANT ALL PRIVILEGES ON DATABASE solar_memory_db TO vchub_user;
 GRANT ALL PRIVILEGES ON DATABASE solar_eval_db TO vchub_user;
 GRANT ALL PRIVILEGES ON DATABASE riha_stock_ai_db TO vchub_user;
+

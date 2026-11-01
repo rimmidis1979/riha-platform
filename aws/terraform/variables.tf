@@ -69,3 +69,4 @@ variable "database_password" {
   default     = "vchub_secret"
   sensitive   = true
 }
+

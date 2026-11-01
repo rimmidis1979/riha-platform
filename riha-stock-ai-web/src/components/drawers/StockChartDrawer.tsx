@@ -261,3 +261,4 @@ export const StockChartDrawer: React.FC<Props> = ({ ticker, onClose, onOpenOrder
     </div>
   );
 };
+

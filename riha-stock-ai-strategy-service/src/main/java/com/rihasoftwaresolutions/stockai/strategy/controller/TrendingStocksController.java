@@ -33,3 +33,4 @@ public class TrendingStocksController {
         return ResponseEntity.ok(workflowCoordinator.getTrendingStocks(filter, search));
     }
 }
+

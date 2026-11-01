@@ -37,3 +37,4 @@ output "image_registry_mode" {
   description = "Image registry pull mode in effect"
   value       = var.image_registry_mode
 }
+

@@ -117,3 +117,4 @@ export const StockRowActionIcons: React.FC<Props> = ({
     </div>
   );
 };
+

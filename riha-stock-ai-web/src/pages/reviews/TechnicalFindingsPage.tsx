@@ -268,3 +268,4 @@ export const TechnicalFindingsPage: React.FC<Props> = ({ ticker, onBack, onNavig
     </div>
   );
 };
+

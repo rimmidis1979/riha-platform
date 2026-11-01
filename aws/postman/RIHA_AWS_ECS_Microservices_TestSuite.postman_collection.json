@@ -1,0 +1,847 @@
+{
+  "info": {
+    "_postman_id": "riha-aws-ecs-microservices-suite-002",
+    "name": "RIHA Enterprise Platform - AWS ECS Microservices & Web Integration Test Suite",
+    "description": "Production validation test suite executing automated verification tests across all 15 AWS ECS Fargate services, web applications, and internal reverse-proxy integrations in AWS Account 172981085842 (us-east-2).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Web Applications & User Interfaces",
+      "item": [
+        {
+          "name": "1.1 Agentic AI Hub Web UI (Port 80)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Content-Type is text/html\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/html\");",
+                  "});",
+                  "pm.test(\"Response time is under 1500ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{hub_url}}/",
+              "host": ["{{hub_url}}"],
+              "path": [""]
+            },
+            "description": "Direct validation of riha-agentic-ai-hub serving Vite SPA on ECS Fargate."
+          }
+        },
+        {
+          "name": "1.2 Stock AI Web UI (Port 80)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Content-Type is text/html\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/html\");",
+                  "});",
+                  "pm.test(\"Response time is under 1500ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{stock_web_url}}/",
+              "host": ["{{stock_web_url}}"],
+              "path": [""]
+            },
+            "description": "Direct validation of riha-stock-ai-web serving Vite SPA on ECS Fargate."
+          }
+        },
+        {
+          "name": "1.3 Integration: Agentic Hub Web -> VCH Goal Contracts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is an array of goal contracts\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{hub_url}}/api/v1/goal-contracts",
+              "host": ["{{hub_url}}"],
+              "path": ["api", "v1", "goal-contracts"]
+            },
+            "description": "Tests Agentic Hub Nginx reverse-proxy routing via Service Connect to riha-version-control-hub.riha.internal:8081."
+          }
+        },
+        {
+          "name": "1.4 Integration: Stock AI Web -> Strategy Service Strategies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Active strategies array returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.length).to.be.at.least(1);",
+                  "    pm.expect(jsonData[0]).to.have.property(\"strategyId\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stock_web_url}}/api/v1/stock-ai/strategies",
+              "host": ["{{stock_web_url}}"],
+              "path": ["api", "v1", "stock-ai", "strategies"]
+            },
+            "description": "Tests Stock AI Web Nginx reverse-proxy routing via Service Connect to riha-stock-ai-strategy-service.riha.internal:8093."
+          }
+        },
+        {
+          "name": "1.5 Integration: Stock AI Web -> Watchlist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Watchlist array returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stock_web_url}}/api/v1/stock-ai/watchlist",
+              "host": ["{{stock_web_url}}"],
+              "path": ["api", "v1", "stock-ai", "watchlist"]
+            },
+            "description": "Tests Stock AI Web Nginx reverse-proxy routing to retrieve the algorithmic stock watchlist."
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Wave 2: Agentic Governance & Memory Plane",
+      "item": [
+        {
+          "name": "2.1 VCH (riha-version-control-hub:8081) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"VCH DB is UP\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.db.status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vch_url}}/actuator/health",
+              "host": ["{{vch_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "2.2 VCH - Goal Contracts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vch_url}}/api/v1/goal-contracts",
+              "host": ["{{vch_url}}"],
+              "path": ["api", "v1", "goal-contracts"]
+            }
+          }
+        },
+        {
+          "name": "2.3 VCH - Prompt Versions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vch_url}}/api/v1/prompt-versions",
+              "host": ["{{vch_url}}"],
+              "path": ["api", "v1", "prompt-versions"]
+            }
+          }
+        },
+        {
+          "name": "2.4 VCH - Topologies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vch_url}}/api/v1/topologies",
+              "host": ["{{vch_url}}"],
+              "path": ["api", "v1", "topologies"]
+            }
+          }
+        },
+        {
+          "name": "2.5 Schema Validator (riha-schema-validator:8082) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Validator DB is UP\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.db.status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{validator_url}}/actuator/health",
+              "host": ["{{validator_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "2.6 Schema Validator - Audits Query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{validator_url}}/api/v1/audits",
+              "host": ["{{validator_url}}"],
+              "path": ["api", "v1", "audits"]
+            }
+          }
+        },
+        {
+          "name": "2.7 Memory Service (riha-memory-service:8086) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"PostgreSQL and Redis connected\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.db.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.redis.status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{memory_url}}/actuator/health",
+              "host": ["{{memory_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "2.8 Eval Monitor (riha-eval-monitor:8087) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"PostgreSQL and Redis connected\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.db.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.redis.status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{eval_url}}/actuator/health",
+              "host": ["{{eval_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Wave 3: Agentic Execution & Orchestration Plane",
+      "item": [
+        {
+          "name": "3.1 MCP Gateway (riha-mcp-gateway:8084) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"PostgreSQL and Redis connected\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.db.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.redis.status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mcp_gateway_url}}/actuator/health",
+              "host": ["{{mcp_gateway_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "3.2 Critic Engine (riha-critic-engine:8085) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"PostgreSQL and Redis connected\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.db.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.redis.status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{critic_url}}/actuator/health",
+              "host": ["{{critic_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "3.3 Topology Orchestrator (riha-topology-orchestrator:8083) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"PostgreSQL connected\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.status).to.eql(\"UP\");",
+                  "    pm.expect(data.components.db.status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{orchestrator_url}}/actuator/health",
+              "host": ["{{orchestrator_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "3.4 Topology Orchestrator - List Workflows",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{orchestrator_url}}/api/v1/orchestrator/workflows",
+              "host": ["{{orchestrator_url}}"],
+              "path": ["api", "v1", "orchestrator", "workflows"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Wave 4: Stock AI Product Microservices",
+      "item": [
+        {
+          "name": "4.1 Market Ingestor (riha-stock-ai-market-ingestor:8091) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Overall status UP\", function () {",
+                  "    pm.expect(pm.response.json().status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{market_ingestor_url}}/actuator/health",
+              "host": ["{{market_ingestor_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "4.2 Robinhood MCP Server (riha-stock-ai-robinhood-mcp-server:8092) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Overall status UP\", function () {",
+                  "    pm.expect(pm.response.json().status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{robinhood_mcp_url}}/actuator/health",
+              "host": ["{{robinhood_mcp_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "4.3 Stock AI Strategy Service (riha-stock-ai-strategy-service:8093) - Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Overall status UP\", function () {",
+                  "    pm.expect(pm.response.json().status).to.eql(\"UP\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{stock_strategy_url}}/actuator/health",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
+        {
+          "name": "4.4 Strategy Service - Active Trading Strategies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify Short Squeeze and VWAP strategies\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"array\");",
+                  "    var ids = data.map(function(s) { return s.strategyId; });",
+                  "    pm.expect(ids).to.include(\"STRAT-SHORT-SQUEEZE\");",
+                  "    pm.expect(ids).to.include(\"STRAT-VWAP-BREAKOUT\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{stock_strategy_url}}/api/v1/stock-ai/strategies",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["api", "v1", "stock-ai", "strategies"]
+            }
+          }
+        },
+        {
+          "name": "4.5 Strategy Service - Dynamic Watchlist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{stock_strategy_url}}/api/v1/stock-ai/watchlist",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["api", "v1", "stock-ai", "watchlist"]
+            }
+          }
+        },
+        {
+          "name": "4.6 Strategy Service - Portfolio Positions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{stock_strategy_url}}/api/v1/stock-ai/portfolio",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["api", "v1", "stock-ai", "portfolio"]
+            }
+          }
+        },
+        {
+          "name": "4.7 Strategy Service - Risk Guardrails",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{stock_strategy_url}}/api/v1/stock-ai/risk-guardrails",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["api", "v1", "stock-ai", "risk-guardrails"]
+            }
+          }
+        },
+        {
+          "name": "4.8 Strategy Service - Audit Decisions Trail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{stock_strategy_url}}/api/v1/stock-ai/decisions",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["api", "v1", "stock-ai", "decisions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - End-to-End Autonomous Trading Flow",
+      "item": [
+        {
+          "name": "5.1 Run Algorithmic Opportunity Scanner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK or 202 ACCEPTED\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 202]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filter\": \"TOP_GAINERS_DAY\",\n  \"limit\": 10\n}"
+            },
+            "url": {
+              "raw": "{{stock_strategy_url}}/api/v1/stock-ai/scanner/run",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["api", "v1", "stock-ai", "scanner", "run"]
+            }
+          }
+        },
+        {
+          "name": "5.2 Live Trading Decisions SSE Stream",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Content-Type is text/event-stream\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/event-stream\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{stock_strategy_url}}/api/v1/stock-ai/stream/decisions",
+              "host": ["{{stock_strategy_url}}"],
+              "path": ["api", "v1", "stock-ai", "stream", "decisions"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

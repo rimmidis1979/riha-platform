@@ -45,11 +45,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     fetchPersonalizedAccountSummary()
       .then((data) => setTelemetry(data))
-      .catch(() => {});
+      .catch(() => { });
     const interval = setInterval(() => {
       fetchPersonalizedAccountSummary()
         .then((data) => setTelemetry(data))
-        .catch(() => {});
+        .catch(() => { });
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -150,11 +150,10 @@ export const App: React.FC = () => {
                 <button
                   key={tab.path}
                   onClick={() => navigate(tab.path)}
-                  className={`px-3.5 py-2 rounded-xl flex items-center gap-2 border transition font-medium ${
-                    active
-                      ? 'bg-zinc-100 text-zinc-950 border-zinc-100 font-bold shadow-md'
-                      : 'bg-zinc-900/60 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:text-white'
-                  }`}
+                  className={`px-3.5 py-2 rounded-xl flex items-center gap-2 border transition font-medium ${active
+                    ? 'bg-zinc-100 text-zinc-950 border-zinc-100 font-bold shadow-md'
+                    : 'bg-zinc-900/60 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:text-white'
+                    }`}
                 >
                   {tab.icon}
                   <span>{tab.label}</span>
@@ -172,11 +171,10 @@ export const App: React.FC = () => {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 transition shrink-0 ${
-                  currentPath === item.path
-                    ? 'bg-zinc-800 text-emerald-300 font-semibold'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-                }`}
+                className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 transition shrink-0 ${currentPath === item.path
+                  ? 'bg-zinc-800 text-emerald-300 font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+                  }`}
               >
                 {item.icon}
                 <span>{item.label}</span>

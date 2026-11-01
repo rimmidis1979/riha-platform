@@ -48,3 +48,4 @@ HEALTHCHECK --interval=20s --timeout=5s --retries=3 --start-period=30s \
   CMD curl -f -s http://localhost:${SERVER_PORT}/actuator/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -Dserver.port=${SERVER_PORT} -jar /app/app.jar"]
+

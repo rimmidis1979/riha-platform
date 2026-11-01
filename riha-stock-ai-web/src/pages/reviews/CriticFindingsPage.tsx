@@ -243,3 +243,4 @@ export const CriticFindingsPage: React.FC<Props> = ({ ticker, onBack, onNavigate
     </div>
   );
 };
+

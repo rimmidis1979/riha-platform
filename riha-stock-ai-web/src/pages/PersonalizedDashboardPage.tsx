@@ -189,3 +189,4 @@ export const PersonalizedDashboardPage: React.FC<Props> = ({ onNavigate }) => {
     </div>
   );
 };
+

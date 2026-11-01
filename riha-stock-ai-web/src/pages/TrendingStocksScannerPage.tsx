@@ -597,3 +597,4 @@ export const TrendingStocksScannerPage: React.FC<Props> = ({ onNavigate }) => {
     </div>
   );
 };
+

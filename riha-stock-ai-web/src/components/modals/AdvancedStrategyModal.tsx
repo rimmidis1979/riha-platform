@@ -117,3 +117,4 @@ export const AdvancedStrategyModal: React.FC<Props> = ({ ticker, onClose }) => {
     </div>
   );
 };
+

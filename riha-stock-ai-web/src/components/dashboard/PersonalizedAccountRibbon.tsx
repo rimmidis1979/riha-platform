@@ -220,3 +220,4 @@ export const PersonalizedAccountRibbon: React.FC<Props> = ({ summary, loading, o
     </div>
   );
 };
+
