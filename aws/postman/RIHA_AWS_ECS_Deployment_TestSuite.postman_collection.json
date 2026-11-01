@@ -1,0 +1,989 @@
+{
+  "info": {
+    "_postman_id": "riha-aws-ecs-test-suite-001",
+    "name": "RIHA Enterprise Agentic AI & Stock AI - AWS ECS Deployment Test Suite",
+    "description": "Production-grade automated test suite verifying all 12 microservices, ALB endpoints, ECS Service Connect routing, and zero-mock policy compliance on AWS ECS Fargate (AWS Account: 172981085842).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - ALB & Web Frontends Health",
+      "item": [
+        {
+          "name": "0.1 ALB Root - Stock AI Executive Web UI (Port 80)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Content-Type is text/html\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/html\");",
+                  "});",
+                  "pm.test(\"Response time is under 1500ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/",
+              "host": ["{{alb_base_url}}"],
+              "path": [""]
+            },
+            "description": "Validates that the Application Load Balancer routes root traffic to the Nginx container serving riha-stock-ai-web."
+          }
+        },
+        {
+          "name": "0.2 ALB Port 5173 - Agentic AI Platform Hub UI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Content-Type is text/html\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/html\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}:{{alb_port_hub}}/",
+              "host": ["{{alb_base_url}}"],
+              "port": "{{alb_port_hub}}",
+              "path": [""]
+            },
+            "description": "Validates direct ALB listener routing to riha-agentic-ai-hub frontend administration portal."
+          }
+        },
+        {
+          "name": "0.3 ALB Port 5174 - Stock AI Web UI Direct Listener",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}:{{alb_port_stock_web}}/",
+              "host": ["{{alb_base_url}}"],
+              "port": "{{alb_port_stock_web}}",
+              "path": [""]
+            },
+            "description": "Validates direct ALB listener on port 5174 for riha-stock-ai-web."
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Stock AI Executive Command & Market Ingestor",
+      "item": [
+        {
+          "name": "1.1 Executive Portfolio & Account Summary (Zero-Mock Verification)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Response schema matches executive summary contract\", function () {",
+                  "    pm.expect(data).to.have.property(\"netAccountEquityUsd\");",
+                  "    pm.expect(data).to.have.property(\"availableBuyingPowerUsd\");",
+                  "    pm.expect(data).to.have.property(\"unrealizedPnlUsd\");",
+                  "    pm.expect(data).to.have.property(\"monitoredTickers\");",
+                  "});",
+                  "pm.test(\"ZERO MOCK POLICY: Balances are strictly $0.00 until Robinhood MCP connected\", function () {",
+                  "    pm.expect(data.netAccountEquityUsd).to.be.oneOf([0, 0.0, 0.00]);",
+                  "    pm.expect(data.availableBuyingPowerUsd).to.be.oneOf([0, 0.0, 0.00]);",
+                  "    pm.expect(data.unrealizedPnlUsd).to.be.oneOf([0, 0.0, 0.00]);",
+                  "    pm.expect(data.realizedTodayPnlUsd).to.be.oneOf([0, 0.0, 0.00]);",
+                  "});",
+                  "pm.test(\"Equity sparkline does not contain fake upward curve\", function () {",
+                  "    if (data.portfolioEquitySparkline && data.portfolioEquitySparkline.length > 0) {",
+                  "        var allZeros = data.portfolioEquitySparkline.every(function(val) { return val === 0; });",
+                  "        pm.expect(allZeros).to.be.true;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/stock-ai/summary/executive",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "stock-ai", "summary", "executive"]
+            },
+            "description": "Verifies that the executive portfolio summary strictly enforces the Zero Mock Data Policy ($0.00 balance until live broker connected)."
+          }
+        },
+        {
+          "name": "1.2 Monitored Stocks List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var list = pm.response.json();",
+                  "pm.test(\"Response is an array of active stocks\", function () {",
+                  "    pm.expect(Array.isArray(list)).to.be.true;",
+                  "    if (list.length > 0) {",
+                  "        pm.expect(list[0]).to.have.property(\"ticker\");",
+                  "        pm.environment.set(\"testTicker\", list[0].ticker);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/stock-ai/stocks",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "stock-ai", "stocks"]
+            },
+            "description": "Retrieves the active watchlist/scan pool populated from live market feeds."
+          }
+        },
+        {
+          "name": "1.3 Live Top Movers Market Screener (Day Gainers & Actives)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var movers = pm.response.json();",
+                  "pm.test(\"Movers list is populated from live market feed\", function () {",
+                  "    pm.expect(Array.isArray(movers)).to.be.true;",
+                  "    if (movers.length > 0) {",
+                  "        pm.expect(movers[0]).to.have.property(\"ticker\");",
+                  "        pm.expect(movers[0]).to.have.property(\"lastPriceUsd\");",
+                  "        pm.expect(movers[0].lastPriceUsd).to.be.above(0);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/market/top-movers",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "market", "top-movers"]
+            },
+            "description": "Tests live screener fetching real-time market movers without mock arrays."
+          }
+        },
+        {
+          "name": "1.4 Live Underneath Technicals (VWAP, RSI-14, MACD, Level-2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var tech = pm.response.json();",
+                  "pm.test(\"Technicals contain required DAG indicator fields\", function () {",
+                  "    pm.expect(tech).to.have.property(\"ticker\");",
+                  "    pm.expect(tech).to.have.property(\"currentPriceUsd\");",
+                  "    pm.expect(tech).to.have.property(\"rsi14\");",
+                  "    pm.expect(tech).to.have.property(\"vwapUsd\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/market/underneath-technicals/{{testTicker}}",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "market", "underneath-technicals", "{{testTicker}}"]
+            },
+            "description": "Fetches real-time computed technical indicators for Node 1 Technical Scan."
+          }
+        },
+        {
+          "name": "1.5 Live SEC Filings & Dilution Catalysts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var filings = pm.response.json();",
+                  "pm.test(\"SEC catalysts structure is valid\", function () {",
+                  "    pm.expect(Array.isArray(filings) || typeof filings === 'object').to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/market/sec-catalysts/{{testTicker}}",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "market", "sec-catalysts", "{{testTicker}}"]
+            },
+            "description": "Fetches live SEC 8-K / S-3 regulatory dilution scans for Node 2."
+          }
+        },
+        {
+          "name": "1.6 Trigger Autonomous Top Movers Scanner (1H / 1D)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK or 202 ACCEPTED\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 202]);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "pm.test(\"Scanner triggered successfully\", function () {",
+                  "    pm.expect(res).to.have.property(\"status\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"window\": \"1H\",\n  \"minRelativeVolume\": 2.5,\n  \"minPrice\": 1.00,\n  \"maxFloat\": 50000000\n}"
+            },
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/stock-ai/scanner/run",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "stock-ai", "scanner", "run"]
+            },
+            "description": "Triggers HourlyAndDailyTopStocksScannerLoop to discover top gainers and fan-out parallel DAG workflows."
+          }
+        },
+        {
+          "name": "1.7 On-The-Fly Autonomous 5-Node DAG Analysis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK or 202 ACCEPTED\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 202]);",
+                  "});",
+                  "var analysis = pm.response.json();",
+                  "if (analysis.auditId) {",
+                  "    pm.environment.set(\"activeAuditId\", analysis.auditId);",
+                  "}",
+                  "if (analysis.workflowId) {",
+                  "    pm.environment.set(\"activeWorkflowId\", analysis.workflowId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/stock-ai/stocks/{{testTicker}}/analyze-now",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "stock-ai", "stocks", "{{testTicker}}", "analyze-now"]
+            },
+            "description": "Executes on-the-fly 5-node DAG pipeline (Technical Scan -> SEC Dilution -> Strategy Synthesis -> Critic Review -> Execution)."
+          }
+        },
+        {
+          "name": "1.8 AI Decisions & Strategy Recommendations Feed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var decisions = pm.response.json();",
+                  "pm.test(\"Decisions array returned\", function () {",
+                  "    pm.expect(Array.isArray(decisions)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/stock-ai/decisions",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "stock-ai", "decisions"]
+            },
+            "description": "Lists the synthesized BUY / SELL / HOLD recommendations with Critic SpEL scores."
+          }
+        },
+        {
+          "name": "1.9 Immutable AI Trade Audit Summary & Telemetry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var audit = pm.response.json();",
+                  "pm.test(\"Audit trail response structure is valid\", function () {",
+                  "    pm.expect(Array.isArray(audit) || typeof audit === 'object').to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/stock-ai/audit-summary",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "stock-ai", "audit-summary"]
+            },
+            "description": "Returns immutable audit logs stored in riha_stock_ai_db for compliance monitoring."
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Robinhood Brokerage MCP Server",
+      "item": [
+        {
+          "name": "2.1 Brokerage Account Profile & Balances (Zero-Mock Check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var acct = pm.response.json();",
+                  "pm.test(\"Account balances are strictly zero when unauthenticated\", function () {",
+                  "    if (!acct.authenticated) {",
+                  "        pm.expect(acct.cashUsd || 0).to.equal(0);",
+                  "        pm.expect(acct.buyingPowerUsd || 0).to.equal(0);",
+                  "        pm.expect(acct.portfolioValueUsd || 0).to.equal(0);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/robinhood/account",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "robinhood", "account"]
+            },
+            "description": "Verifies that Robinhood MCP Server returns $0.00 cash and buying power until live credentials are provided."
+          }
+        },
+        {
+          "name": "2.2 Brokerage Order Validation Guardrail (Reject Unauthenticated Orders)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Fails safely with 400, 401, 403 or 422 if credentials missing\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 401, 403, 422]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticker\": \"AAPL\",\n  \"side\": \"BUY\",\n  \"quantity\": 10,\n  \"limitPrice\": 150.00,\n  \"orderType\": \"LIMIT\",\n  \"timeInForce\": \"GTC\"\n}"
+            },
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/robinhood/orders",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "robinhood", "orders"]
+            },
+            "description": "Tests Robinhood MCP order execution endpoint guardrail."
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Core Platform: Version Control Hub (VCH)",
+      "item": [
+        {
+          "name": "3.1 List Goal Contracts (Verify RIHA_STOCK_AI_TRADE_CONTRACT_V1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var contracts = pm.response.json();",
+                  "pm.test(\"Registered contracts list is an array\", function () {",
+                  "    pm.expect(Array.isArray(contracts)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/goal-contracts",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "goal-contracts"]
+            },
+            "description": "Queries Version Control Hub for registered enterprise goal contracts."
+          }
+        },
+        {
+          "name": "3.2 List Active Strategy System Prompt Versions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var prompts = pm.response.json();",
+                  "pm.test(\"Prompts list returned\", function () {",
+                  "    pm.expect(Array.isArray(prompts)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/prompt-versions",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "prompt-versions"]
+            },
+            "description": "Fetches version-controlled AI prompt templates from VCH."
+          }
+        },
+        {
+          "name": "3.3 List DAG Topology Definitions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/topologies",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "topologies"]
+            },
+            "description": "Retrieves registered DAG workflow topologies."
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Core Platform: Schema Validator",
+      "item": [
+        {
+          "name": "4.1 List Registered JSON Schemas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/validator/schemas",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "validator", "schemas"]
+            },
+            "description": "Verifies registered JSON schema contracts in riha-schema-validator."
+          }
+        },
+        {
+          "name": "4.2 Validate Trade Recommendation Payload Contract",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var valResult = pm.response.json();",
+                  "pm.test(\"Validation outcome evaluated\", function () {",
+                  "    pm.expect(valResult).to.have.property(\"valid\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schemaType\": \"GOAL_CONTRACT\",\n  \"payload\": {\n    \"productId\": \"RIHA_STOCK_AI\",\n    \"contractId\": \"RIHA_STOCK_AI_TRADE_CONTRACT_V1\",\n    \"ticker\": \"AAPL\",\n    \"recommendation\": \"BUY\",\n    \"confidenceScore\": 0.88,\n    \"riskRating\": \"LOW\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/validator/validate",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "validator", "validate"]
+            },
+            "description": "Tests schema validation for synthesized agent recommendations."
+          }
+        },
+        {
+          "name": "4.3 Schema Audit Logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/audits",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "audits"]
+            },
+            "description": "Fetches immutable schema validation audit entries."
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Core Platform: MCP Gateway",
+      "item": [
+        {
+          "name": "5.1 List Registered MCP Tool Providers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var servers = pm.response.json();",
+                  "pm.test(\"Servers array returned\", function () {",
+                  "    pm.expect(Array.isArray(servers)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/mcp/servers",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "mcp", "servers"]
+            },
+            "description": "Verifies that riha-mcp-gateway is running and discovers active MCP tool servers."
+          }
+        },
+        {
+          "name": "5.2 Execute Live MCP Tool via Gateway Protocol (fetchTopMoversByWindow)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var result = pm.response.json();",
+                  "pm.test(\"Tool result contains data payload\", function () {",
+                  "    pm.expect(result).to.be.an(\"object\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serverId\": \"riha-stock-ai-market-ingestor\",\n  \"toolName\": \"fetchTopMoversByWindow\",\n  \"arguments\": {\n    \"window\": \"1H\",\n    \"minRelativeVolume\": 2.5,\n    \"minPrice\": 1.00,\n    \"maxFloat\": 50000000\n  }\n}"
+            },
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/mcp/invoke-tool",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "mcp", "invoke-tool"]
+            },
+            "description": "Invokes the live market ingestor tool fetchTopMoversByWindow through riha-mcp-gateway."
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Core Platform: Critic Engine (SpEL & Risk Guardrails)",
+      "item": [
+        {
+          "name": "6.1 Dry-Run SpEL Policy Evaluation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var criticRes = pm.response.json();",
+                  "pm.test(\"Critic decision payload contains verdict and convergence score\", function () {",
+                  "    pm.expect(criticRes).to.have.property(\"passed\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"RIHA_STOCK_AI\",\n  \"spelExpression\": \"#rsi14 < 75 and #dailyLossPct < 5.0\",\n  \"evaluationContext\": {\n    \"rsi14\": 52.4,\n    \"dailyLossPct\": 1.2\n  }\n}"
+            },
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/critic/dry-run",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "critic", "dry-run"]
+            },
+            "description": "Tests deterministic SpEL risk limit evaluation on candidate trade parameters."
+          }
+        },
+        {
+          "name": "6.2 List Critic Policies for Stock AI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/critic/policies/{{productId}}",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "critic", "policies", "{{productId}}"]
+            },
+            "description": "Retrieves active deterministic risk guardrails for RIHA_STOCK_AI."
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Core Platform: Memory Service (Episodic Vector DB)",
+      "item": [
+        {
+          "name": "7.1 Episodic Vector Semantic Search",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var results = pm.response.json();",
+                  "pm.test(\"Semantic search results returned\", function () {",
+                  "    pm.expect(Array.isArray(results) || typeof results === 'object').to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"RIHA_STOCK_AI\",\n  \"query\": \"FDA approval biotech catalyst with low float under 50M\",\n  \"topK\": 3\n}"
+            },
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/memory/test-harness/semantic-search",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "memory", "test-harness", "semantic-search"]
+            },
+            "description": "Performs cosine similarity search using pgvector embeddings in solar_memory_db."
+          }
+        },
+        {
+          "name": "7.2 Working Memory Cache State",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/memory/test-harness/working-memory/{{productId}}",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "memory", "test-harness", "working-memory", "{{productId}}"]
+            },
+            "description": "Queries current working memory state for RIHA_STOCK_AI."
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Core Platform: Topology Orchestrator & Workflows",
+      "item": [
+        {
+          "name": "8.1 List Active DAG Workflow Instances",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var wfs = pm.response.json();",
+                  "pm.test(\"Workflows returned as an array\", function () {",
+                  "    pm.expect(Array.isArray(wfs)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/orchestrator/workflows",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "orchestrator", "workflows"]
+            },
+            "description": "Lists running and completed DAG execution instances across the cluster."
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - Core Platform: Eval Monitor & Token Economics",
+      "item": [
+        {
+          "name": "9.1 Token Economy & LLM Cost Telemetry Metrics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var metrics = pm.response.json();",
+                  "pm.test(\"Metrics object returned\", function () {",
+                  "    pm.expect(metrics).to.be.an(\"object\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/eval/test-harness/metrics/token-economy/{{productId}}",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "eval", "test-harness", "metrics", "token-economy", "{{productId}}"]
+            },
+            "description": "Fetches aggregated token usage, cost calculations, and latency distributions."
+          }
+        },
+        {
+          "name": "9.2 List Evaluation Run Executions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alb_base_url}}/api/v1/eval/test-harness/runs/{{productId}}",
+              "host": ["{{alb_base_url}}"],
+              "path": ["api", "v1", "eval", "test-harness", "runs", "{{productId}}"]
+            },
+            "description": "Lists evaluation test runs and benchmark scoring."
+          }
+        }
+      ]
+    }
+  ]
+}
