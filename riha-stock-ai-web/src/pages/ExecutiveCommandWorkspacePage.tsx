@@ -733,7 +733,7 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                 <div>
                   <div className="text-[10px] text-zinc-400">R/R &amp; CONF</div>
                   <div className="text-sm font-bold text-zinc-100">
-                    1:{selectedAnalysis.riskRewardRatio} ({(Number(selectedAnalysis.confidenceScore || 0.9) * 100).toFixed(0)}%)
+                    1:{selectedAnalysis.riskRewardRatio} ({selectedAnalysis.confidenceScore != null ? (Number(selectedAnalysis.confidenceScore) * 100).toFixed(0) + '%' : '--'})
                   </div>
                 </div>
               </div>
@@ -785,7 +785,7 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-white">{st.strategyName}</span>
                       <span className="text-emerald-400 font-semibold">
-                        Match: {(Number(st.matchScore || 0.9) * 100).toFixed(0)}% (Weight {(Number(st.weight || 0.33) * 100).toFixed(0)}%)
+                        Match: {st.matchScore != null ? (Number(st.matchScore) * 100).toFixed(0) + '%' : '--'} (Weight {st.weight != null ? (Number(st.weight) * 100).toFixed(0) + '%' : '--'})
                       </span>
                     </div>
                     <div className="text-[10px] text-zinc-400">
@@ -859,7 +859,7 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                       <div className="space-y-1.5 text-[11px]">
                         <div className="flex items-center justify-between">
                           <span>Verdict: <strong className="text-emerald-400">{c.verdict}</strong></span>
-                          <span>Convergence: <strong className="text-white">{(Number(c.semanticConvergenceScore || 0.94) * 100).toFixed(1)}%</strong></span>
+                          <span>Convergence: <strong className="text-white">{c.semanticConvergenceScore != null ? (Number(c.semanticConvergenceScore) * 100).toFixed(1) + '%' : '--'}</strong></span>
                         </div>
                         <div className="text-zinc-300 text-[10px]">{c.remediationFeedback}</div>
                       </div>
