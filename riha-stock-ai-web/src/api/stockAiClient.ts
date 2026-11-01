@@ -1,12 +1,20 @@
 import {
   AiTradeAuditTrail,
   AiTradeDecision,
+  CriticFindings,
   CriticRiskGuardrails,
   LiveWatchlistQuote,
   MasterAuditSummary,
+  OrderSubmissionRequest,
+  OwnedStockPosition,
+  PersonalizedAccountSummary,
   Rfc7807ProblemDetail,
   RobinhoodPortfolioSnapshot,
+  SecMemoryFindings,
+  StrategyDetails,
   StrategyPromptBinding,
+  TechnicalFindings,
+  TrendingStockItem,
 } from '../types/stockAi';
 
 export const STRATEGY_API_BASE =
@@ -372,4 +380,62 @@ export async function updateCriticRiskGuardrails(updates: {
     body: JSON.stringify(updates),
   });
   return handleResponse<CriticRiskGuardrails>(res, url);
+}
+
+export async function fetchPersonalizedAccountSummary(): Promise<PersonalizedAccountSummary> {
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/portfolio/account-summary`;
+  const res = await fetch(url);
+  return handleResponse<PersonalizedAccountSummary>(res, url);
+}
+
+export async function fetchOwnedPositions(): Promise<OwnedStockPosition[]> {
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/portfolio/positions`;
+  const res = await fetch(url);
+  return handleResponse<OwnedStockPosition[]>(res, url);
+}
+
+export async function submitPortfolioOrder(order: OrderSubmissionRequest): Promise<Record<string, any>> {
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/portfolio/orders`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order),
+  });
+  return handleResponse<Record<string, any>>(res, url);
+}
+
+export async function fetchTrendingStocks(
+  filter: string = 'TOP_GAINERS_DAY',
+  search?: string
+): Promise<TrendingStockItem[]> {
+  const qs = new URLSearchParams();
+  if (filter) qs.set('filter', filter);
+  if (search) qs.set('search', search);
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/trending?${qs.toString()}`;
+  const res = await fetch(url);
+  return handleResponse<TrendingStockItem[]>(res, url);
+}
+
+export async function fetchTechnicalFindings(ticker: string): Promise<TechnicalFindings> {
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/stocks/${encodeURIComponent(ticker)}/findings/technical`;
+  const res = await fetch(url);
+  return handleResponse<TechnicalFindings>(res, url);
+}
+
+export async function fetchCriticFindings(ticker: string): Promise<CriticFindings> {
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/stocks/${encodeURIComponent(ticker)}/findings/critic`;
+  const res = await fetch(url);
+  return handleResponse<CriticFindings>(res, url);
+}
+
+export async function fetchSecAndMemoryFindings(ticker: string): Promise<SecMemoryFindings> {
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/stocks/${encodeURIComponent(ticker)}/findings/sec-memory`;
+  const res = await fetch(url);
+  return handleResponse<SecMemoryFindings>(res, url);
+}
+
+export async function fetchStrategyDetails(ticker: string): Promise<StrategyDetails> {
+  const url = `${STRATEGY_API_BASE}/api/v1/stock-ai/stocks/${encodeURIComponent(ticker)}/findings/strategy-details`;
+  const res = await fetch(url);
+  return handleResponse<StrategyDetails>(res, url);
 }

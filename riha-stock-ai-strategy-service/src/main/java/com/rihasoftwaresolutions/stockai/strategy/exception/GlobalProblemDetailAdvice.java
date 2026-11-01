@@ -30,5 +30,27 @@ public class GlobalProblemDetailAdvice {
         problem.setProperty("timestamp", Instant.now().toString());
         return problem;
     }
+
+    @ExceptionHandler(InsufficientOwnedSharesException.class)
+    public ProblemDetail handleInsufficientOwnedShares(
+            InsufficientOwnedSharesException ex,
+            HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                ex.getMessage()
+        );
+        problem.setTitle("422 Unprocessable Entity - Position-Gated Sell Guardrail Rejection");
+        problem.setType(URI.create("https://rihasoftwaresolutions.com/problems/position-gated-sell-violation"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("service", "riha-stock-ai-strategy-service");
+        problem.setProperty("productId", "RIHA_STOCK_AI");
+        problem.setProperty("ticker", ex.getTicker());
+        problem.setProperty("requestedQuantity", ex.getRequestedQuantity());
+        problem.setProperty("ownedQuantity", ex.getOwnedQuantity());
+        problem.setProperty("guardrailSpEL", "#payload.side == 'SELL' ? (#context.ownedQuantity > 0 and #payload.quantity <= #context.ownedQuantity) : true");
+        problem.setProperty("deterministicGuardrailEnforced", true);
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
 }
 
