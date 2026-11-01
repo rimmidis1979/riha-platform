@@ -1,0 +1,24 @@
+server:
+  port: ${SERVER_PORT:8092}
+
+spring:
+  application:
+    name: riha-stock-ai-robinhood-mcp-server
+
+riha:
+  stockai:
+    product-id: RIHA_STOCK_AI
+    robinhood:
+      base-url: ${ROBINHOOD_BASE_URL:https://api.robinhood.com}
+      client-id: ${ROBINHOOD_CLIENT_ID:}
+      private-key: ${ROBINHOOD_PRIVATE_KEY:}
+      session-token: ${ROBINHOOD_SESSION_TOKEN:}
+    critic-signing-secret: ${RIHA_CRITIC_SIGNING_SECRET:riha-enterprise-critic-hmac-key-2026}
+    mcp-gateway-url: ${RIHA_MCP_GATEWAY_URL:http://localhost:8084}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+

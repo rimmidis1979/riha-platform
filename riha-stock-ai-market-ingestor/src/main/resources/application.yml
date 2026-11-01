@@ -1,0 +1,39 @@
+server:
+  port: ${SERVER_PORT:8091}
+
+spring:
+  application:
+    name: riha-stock-ai-market-ingestor
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6380}
+      timeout: 3000ms
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+riha:
+  stockai:
+    product-id: RIHA_STOCK_AI
+    market:
+      ws-url: ${RIHA_MARKET_WS_URL:}
+      rest-url: ${RIHA_MARKET_REST_URL:}
+      api-key: ${RIHA_MARKET_API_KEY:}
+      sec-edgar-url: ${RIHA_SEC_EDGAR_URL:https://data.sec.gov}
+      sec-user-agent: ${RIHA_SEC_USER_AGENT:}
+      kafka-topic: riha.stockai.market.ticks.live
+      redis-key-prefix: "riha:stockai:quote:"
+      watchlist: ${RIHA_MARKET_WATCHLIST:NVDA,AAPL,TSLA,AMD,PLTR,SMCI}
+    mcp-gateway-url: ${RIHA_MCP_GATEWAY_URL:http://localhost:8084}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+

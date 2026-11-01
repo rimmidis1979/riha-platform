@@ -1,0 +1,53 @@
+server:
+  port: ${SERVER_PORT:8093}
+
+spring:
+  application:
+    name: riha-stock-ai-strategy-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/vchub_archive}
+    username: ${SPRING_DATASOURCE_USERNAME:vchub_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:vchub_secret}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6380}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    consumer:
+      group-id: riha-stock-ai-strategy-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+riha:
+  stockai:
+    product-id: RIHA_STOCK_AI
+    goal-contract-id: RIHA_STOCK_AI_TRADE_CONTRACT_V1
+    topology-id: RIHA_STOCK_AI_STRATEGY_DAG_V1
+    vch-api-url: ${RIHA_VCH_API_URL:http://localhost:8089}
+    validator-api-url: ${RIHA_VALIDATOR_API_URL:http://localhost:8082}
+    orchestrator-api-url: ${RIHA_ORCHESTRATOR_API_URL:http://localhost:8083}
+    mcp-gateway-api-url: ${RIHA_MCP_GATEWAY_API_URL:http://localhost:8084}
+    critic-api-url: ${RIHA_CRITIC_API_URL:http://localhost:8085}
+    memory-api-url: ${RIHA_MEMORY_API_URL:http://localhost:8086}
+    eval-monitor-api-url: ${RIHA_EVAL_MONITOR_API_URL:http://localhost:8087}
+    market-ingestor-api-url: ${RIHA_MARKET_INGESTOR_API_URL:http://localhost:8091}
+    robinhood-mcp-api-url: ${RIHA_ROBINHOOD_MCP_API_URL:http://localhost:8092}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

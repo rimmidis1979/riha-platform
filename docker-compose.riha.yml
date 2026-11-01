@@ -1,0 +1,617 @@
+services:
+  # =====================================================================
+  # PostgreSQL 16: Multi-Tenant Relational & Vector Storage
+  # Databases: vchub_archive, vch_db, solar_auditor_schema,
+  #            solar_mcp_registry, solar_critic_db, solar_memory_db,
+  #            solar_eval_db, riha_stock_ai_db
+  # =====================================================================
+  riha-postgres:
+    image: postgres:16-alpine
+    container_name: riha-postgres
+    hostname: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vchub_archive
+      POSTGRES_USER: vchub_user
+      POSTGRES_PASSWORD: vchub_secret
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./agentic_ai_platform/docker/postgres/init-multi-db.sql:/docker-entrypoint-initdb.d/init-multi-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vchub_user -d vchub_archive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      riha-network:
+        aliases:
+          - postgres
+          - riha-postgres
+
+  # =====================================================================
+  # Apache Kafka (KRaft mode): Asynchronous Event Choreography Backbone
+  # =====================================================================
+  riha-kafka:
+    image: apache/kafka:latest
+    container_name: riha-kafka
+    hostname: kafka
+    restart: unless-stopped
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "4L622nShTUiTvyT30rBQcw"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      riha-network:
+        aliases:
+          - kafka
+          - riha-kafka
+
+  # =====================================================================
+  # Redis 7 Alpine: Orchestrator DAG State & Live Market Snapshots
+  # =====================================================================
+  riha-redis:
+    image: redis:7-alpine
+    container_name: riha-redis
+    hostname: redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      riha-network:
+        aliases:
+          - redis
+          - riha-redis
+
+  # =====================================================================
+  # Jaeger: OpenTelemetry Distributed Tracing Backend & Visualizer
+  # =====================================================================
+  riha-jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: riha-jaeger
+    hostname: jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      riha-network:
+        aliases:
+          - jaeger
+          - riha-jaeger
+
+  # =====================================================================
+  # INFRASTRUCTURE 1: riha-version-control-hub (Ports 8081 & 8089 -> 8080)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-version-control-hub:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-version-control-hub
+    build:
+      context: ./agentic_ai_platform/riha-version-control-hub
+      dockerfile: Dockerfile
+    container_name: riha-version-control-hub
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+      - "8089:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/vchub_archive
+      SPRING_DATASOURCE_USERNAME: vchub_user
+      SPRING_DATASOURCE_PASSWORD: vchub_secret
+      SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+      APP_GIT_REPOSITORY_PATH: /app/data/git-repo
+      SERVER_PORT: 8080
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus,env
+      APP_GIT_REMOTE_URL: ${GITHUB_REPOSITORY_URL:-}
+      APP_GIT_TOKEN: ${GITHUB_TOKEN:-}
+      APP_GIT_USERNAME: ${GITHUB_USERNAME:-rimmidis1979}
+    depends_on:
+      riha-postgres:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-jaeger:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - git_repo_data:/app/data/git-repo
+    networks:
+      riha-network:
+        aliases:
+          - riha-version-control-hub
+          - version-control-hub
+
+  # =====================================================================
+  # INFRASTRUCTURE 2: riha-schema-validator (Port 8082 -> 8080)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-schema-validator:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-schema-validator
+    build:
+      context: ./agentic_ai_platform/riha-schema-validator
+      dockerfile: Dockerfile
+    container_name: riha-schema-validator
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/vchub_archive
+      SPRING_DATASOURCE_USERNAME: vchub_user
+      SPRING_DATASOURCE_PASSWORD: vchub_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+      SERVER_PORT: 8080
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+    depends_on:
+      riha-postgres:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-jaeger:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      riha-network:
+        aliases:
+          - riha-schema-validator
+
+  # =====================================================================
+  # INFRASTRUCTURE 3: riha-topology-orchestrator (Port 8083 -> 8080)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-topology-orchestrator:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-topology-orchestrator
+    build:
+      context: ./agentic_ai_platform/riha-topology-orchestrator
+      dockerfile: Dockerfile
+    container_name: riha-topology-orchestrator
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_BEARER_TOKEN_BEDROCK: ${AWS_BEARER_TOKEN_BEDROCK:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+      APP_VCHUB_BASE_URL: http://riha-version-control-hub:8080
+      SERVER_PORT: 8080
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+    depends_on:
+      riha-redis:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-jaeger:
+        condition: service_started
+      riha-version-control-hub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      riha-network:
+        aliases:
+          - riha-topology-orchestrator
+
+  # =====================================================================
+  # INFRASTRUCTURE 4: riha-mcp-gateway (Port 8084)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-mcp-gateway:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-mcp-gateway
+    build:
+      context: ./agentic_ai_platform/riha-mcp-gateway
+      dockerfile: Dockerfile
+    container_name: riha-mcp-gateway
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8084
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/solar_mcp_registry
+      SPRING_DATASOURCE_USERNAME: vchub_user
+      SPRING_DATASOURCE_PASSWORD: vchub_secret
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_BEARER_TOKEN_BEDROCK: ${AWS_BEARER_TOKEN_BEDROCK:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      riha-postgres:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8084/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      riha-network:
+        aliases:
+          - riha-mcp-gateway
+
+  # =====================================================================
+  # INFRASTRUCTURE 5: riha-critic-engine (Port 8085)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-critic-engine:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-critic-engine
+    build:
+      context: ./agentic_ai_platform/riha-critic-engine
+      dockerfile: Dockerfile
+    container_name: riha-critic-engine
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8085
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/solar_critic_db
+      SPRING_DATASOURCE_USERNAME: vchub_user
+      SPRING_DATASOURCE_PASSWORD: vchub_secret
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      APP_VCHUB_BASE_URL: http://riha-version-control-hub:8080
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      riha-postgres:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8085/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      riha-network:
+        aliases:
+          - riha-critic-engine
+
+  # =====================================================================
+  # INFRASTRUCTURE 6: riha-memory-service (Port 8086)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-memory-service:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-memory-service
+    build:
+      context: ./agentic_ai_platform/riha-memory-service
+      dockerfile: Dockerfile
+    container_name: riha-memory-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8086
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/solar_memory_db
+      SPRING_DATASOURCE_USERNAME: vchub_user
+      SPRING_DATASOURCE_PASSWORD: vchub_secret
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_BEARER_TOKEN_BEDROCK: ${AWS_BEARER_TOKEN_BEDROCK:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      riha-postgres:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8086/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      riha-network:
+        aliases:
+          - riha-memory-service
+
+  # =====================================================================
+  # INFRASTRUCTURE 7: riha-eval-monitor (Port 8087)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-eval-monitor:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-eval-monitor
+    build:
+      context: ./agentic_ai_platform/riha-eval-monitor
+      dockerfile: Dockerfile
+    container_name: riha-eval-monitor
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8087
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/solar_eval_db
+      SPRING_DATASOURCE_USERNAME: vchub_user
+      SPRING_DATASOURCE_PASSWORD: vchub_secret
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      APP_MCP_GATEWAY_URL: http://riha-mcp-gateway:8084
+      APP_CRITIC_ENGINE_URL: http://riha-critic-engine:8085
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+    depends_on:
+      riha-postgres:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8087/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      riha-network:
+        aliases:
+          - riha-eval-monitor
+
+  # =====================================================================
+  # INFRASTRUCTURE 8: riha-agentic-ai-hub (Port 5173 -> 80)
+  # Registry: docker.io/rimmidis/riha-agentic-ai-platform
+  # =====================================================================
+  riha-agentic-ai-hub:
+    image: docker.io/rimmidis/riha-agentic-ai-platform:riha-agentic-ai-hub
+    build:
+      context: ./agentic_ai_platform/web/riha-agentic-ai-hub
+      dockerfile: Dockerfile
+    container_name: riha-agentic-ai-hub
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      riha-version-control-hub:
+        condition: service_healthy
+      riha-schema-validator:
+        condition: service_healthy
+      riha-topology-orchestrator:
+        condition: service_healthy
+      riha-mcp-gateway:
+        condition: service_healthy
+      riha-critic-engine:
+        condition: service_healthy
+      riha-memory-service:
+        condition: service_healthy
+      riha-eval-monitor:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - riha-network
+
+  # =====================================================================
+  # STOCK AI 1: riha-stock-ai-market-ingestor (Port 8091)
+  # Registry: docker.io/rimmidis/riha-platform
+  # =====================================================================
+  riha-stock-ai-market-ingestor:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-market-ingestor
+    build:
+      context: ./stock-ai/riha-stock-ai-market-ingestor
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-market-ingestor
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    environment:
+      SERVER_PORT: 8091
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RIHA_MARKET_WS_URL: ${RIHA_MARKET_WS_URL:-wss://stream.finance.yahoo.com}
+      RIHA_MARKET_REST_URL: ${RIHA_MARKET_REST_URL:-https://query1.finance.yahoo.com/v8/finance/chart}
+      RIHA_MARKET_API_KEY: ${RIHA_MARKET_API_KEY:-}
+      RIHA_SEC_EDGAR_URL: ${RIHA_SEC_EDGAR_URL:-https://data.sec.gov}
+      RIHA_SEC_USER_AGENT: ${RIHA_SEC_USER_AGENT:-RihaSoftwareSolutions-StockAI/1.0 (enterprise@rihasoftwaresolutions.com)}
+      RIHA_MCP_GATEWAY_URL: http://riha-mcp-gateway:8084
+    depends_on:
+      riha-kafka:
+        condition: service_healthy
+      riha-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8091/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      riha-network:
+        aliases:
+          - riha-stock-ai-market-ingestor
+
+  # =====================================================================
+  # STOCK AI 2: riha-stock-ai-robinhood-mcp-server (Port 8092)
+  # Registry: docker.io/rimmidis/riha-platform
+  # =====================================================================
+  riha-stock-ai-robinhood-mcp-server:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-robinhood-mcp-server
+    build:
+      context: ./stock-ai/riha-stock-ai-robinhood-mcp-server
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-robinhood-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    environment:
+      SERVER_PORT: 8092
+      ROBINHOOD_BASE_URL: ${ROBINHOOD_BASE_URL:-https://api.robinhood.com}
+      ROBINHOOD_CLIENT_ID: ${ROBINHOOD_CLIENT_ID:-}
+      ROBINHOOD_PRIVATE_KEY: ${ROBINHOOD_PRIVATE_KEY:-}
+      RIHA_CRITIC_SIGNING_SECRET: ${RIHA_CRITIC_SIGNING_SECRET:-riha-enterprise-critic-hmac-key-2026}
+      RIHA_MCP_GATEWAY_URL: http://riha-mcp-gateway:8084
+    depends_on:
+      riha-mcp-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8092/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      riha-network:
+        aliases:
+          - riha-stock-ai-robinhood-mcp-server
+
+  # =====================================================================
+  # STOCK AI 3: riha-stock-ai-strategy-service (Port 8093)
+  # Registry: docker.io/rimmidis/riha-platform
+  # =====================================================================
+  riha-stock-ai-strategy-service:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-strategy-service
+    build:
+      context: ./stock-ai/riha-stock-ai-strategy-service
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-strategy-service
+    restart: unless-stopped
+    ports:
+      - "8093:8093"
+    environment:
+      SERVER_PORT: 8093
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/vchub_archive
+      SPRING_DATASOURCE_USERNAME: vchub_user
+      SPRING_DATASOURCE_PASSWORD: vchub_secret
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RIHA_VCH_API_URL: http://riha-version-control-hub:8080
+      RIHA_VALIDATOR_API_URL: http://riha-schema-validator:8080
+      RIHA_ORCHESTRATOR_API_URL: http://riha-topology-orchestrator:8080
+      RIHA_MCP_GATEWAY_API_URL: http://riha-mcp-gateway:8084
+      RIHA_CRITIC_API_URL: http://riha-critic-engine:8085
+      RIHA_MEMORY_API_URL: http://riha-memory-service:8086
+      RIHA_EVAL_MONITOR_API_URL: http://riha-eval-monitor:8087
+      RIHA_MARKET_INGESTOR_API_URL: http://riha-stock-ai-market-ingestor:8091
+      RIHA_ROBINHOOD_MCP_API_URL: http://riha-stock-ai-robinhood-mcp-server:8092
+    depends_on:
+      riha-postgres:
+        condition: service_healthy
+      riha-kafka:
+        condition: service_healthy
+      riha-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8093/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      riha-network:
+        aliases:
+          - riha-stock-ai-strategy-service
+
+  # =====================================================================
+  # STOCK AI 4: riha-stock-ai-web (Port 5174 -> 80)
+  # Registry: docker.io/rimmidis/riha-platform
+  # =====================================================================
+  riha-stock-ai-web:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-web
+    build:
+      context: ./stock-ai/riha-stock-ai-web
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-web
+    restart: unless-stopped
+    ports:
+      - "5174:80"
+    depends_on:
+      - riha-stock-ai-strategy-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - riha-network
+
+networks:
+  riha-network:
+    name: riha-enterprise-network
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: vchub_postgres_data
+  kafka_data:
+    name: vchub_kafka_data
+  git_repo_data:
+    name: vchub_git_repo_data
+  redis_data:
+    name: vchub_redis_data
+

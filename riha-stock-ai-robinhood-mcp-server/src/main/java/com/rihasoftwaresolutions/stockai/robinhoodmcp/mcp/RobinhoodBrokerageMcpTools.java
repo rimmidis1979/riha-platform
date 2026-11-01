@@ -1,0 +1,84 @@
+package com.rihasoftwaresolutions.stockai.robinhoodmcp.mcp;
+
+import com.rihasoftwaresolutions.stockai.robinhoodmcp.annotation.Tool;
+import com.rihasoftwaresolutions.stockai.robinhoodmcp.model.LiveBuyingPowerAndPositionsResponse;
+import com.rihasoftwaresolutions.stockai.robinhoodmcp.model.TradeOrderExecutionReceipt;
+import com.rihasoftwaresolutions.stockai.robinhoodmcp.model.TradeOrderRequest;
+import com.rihasoftwaresolutions.stockai.robinhoodmcp.service.RobinhoodLiveBrokerageService;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+
+@Component
+public class RobinhoodBrokerageMcpTools {
+
+    private final RobinhoodLiveBrokerageService brokerageService;
+
+    public RobinhoodBrokerageMcpTools(RobinhoodLiveBrokerageService brokerageService) {
+        this.brokerageService = brokerageService;
+    }
+
+    @Tool(
+            name = "getLiveBuyingPowerAndPositions",
+            description = "Returns real-time cash balance, unsettled funds, and open equity positions from live Robinhood brokerage account."
+    )
+    public LiveBuyingPowerAndPositionsResponse getLiveBuyingPowerAndPositions() {
+        return brokerageService.getLiveBuyingPowerAndPositions();
+    }
+
+    @Tool(
+            name = "getLiveAccountAndProfitSummary",
+            description = "Fetches real-time portfolio equity, cash buying power, unsettled funds, open positions, today's realized/unrealized P&L, and all-time account profit."
+    )
+    public LiveBuyingPowerAndPositionsResponse getLiveAccountAndProfitSummary() {
+        return brokerageService.getLiveBuyingPowerAndPositions();
+    }
+
+    @Tool(
+            name = "submitLimitOrder",
+            description = "Executes a live BUY or SELL limit order only when accompanied by a cryptographic approval token/signature from riha-critic-engine."
+    )
+    public TradeOrderExecutionReceipt submitLimitOrder(TradeOrderRequest request) {
+        return brokerageService.submitLimitOrder(request);
+    }
+
+    @Tool(
+            name = "executeAutoTradeOrder",
+            description = "Executes a live BUY or SELL order on Robinhood ONLY when accompanied by a verified criticApprovalToken emitted by riha-critic-engine."
+    )
+    public TradeOrderExecutionReceipt executeAutoTradeOrder(TradeOrderRequest request) {
+        return brokerageService.submitLimitOrder(request);
+    }
+
+    @Tool(
+            name = "cancelOpenOrder",
+            description = "Cancels an active working brokerage order."
+    )
+    public Map<String, Object> cancelOpenOrder(String orderId) {
+        return brokerageService.cancelOpenOrder(orderId);
+    }
+
+    @Tool(
+            name = "cancelWorkingOrder",
+            description = "Cancels an active working brokerage order."
+    )
+    public Map<String, Object> cancelWorkingOrder(String orderId) {
+        return brokerageService.cancelOpenOrder(orderId);
+    }
+
+    @Tool(
+            name = "getLiveOrderStatus",
+            description = "Polls real-time fill price and execution status for a live Robinhood brokerage order."
+    )
+    public TradeOrderExecutionReceipt getLiveOrderStatus(String orderId) {
+        return brokerageService.getLiveOrderStatus(orderId);
+    }
+
+    @Tool(
+            name = "getOrderExecutionStatus",
+            description = "Polls real-time fill price and execution status for a live Robinhood brokerage order."
+    )
+    public TradeOrderExecutionReceipt getOrderExecutionStatus(String orderId) {
+        return brokerageService.getLiveOrderStatus(orderId);
+    }
+}

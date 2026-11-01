@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  riha-stock-ai-market-ingestor:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-market-ingestor
+    build:
+      context: ./riha-stock-ai-market-ingestor
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-market-ingestor
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    environment:
+      SERVER_PORT: 8091
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      RIHA_MARKET_WS_URL: ${RIHA_MARKET_WS_URL:-}
+      RIHA_MARKET_REST_URL: ${RIHA_MARKET_REST_URL:-}
+      RIHA_MARKET_API_KEY: ${RIHA_MARKET_API_KEY:-}
+      RIHA_SEC_EDGAR_URL: ${RIHA_SEC_EDGAR_URL:-https://data.sec.gov}
+      RIHA_SEC_USER_AGENT: ${RIHA_SEC_USER_AGENT:-}
+      RIHA_MCP_GATEWAY_URL: ${RIHA_MCP_GATEWAY_URL:-http://riha-mcp-gateway:8084}
+    networks:
+      - riha-network
+
+  riha-stock-ai-robinhood-mcp-server:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-robinhood-mcp-server
+    build:
+      context: ./riha-stock-ai-robinhood-mcp-server
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-robinhood-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    environment:
+      SERVER_PORT: 8092
+      ROBINHOOD_BASE_URL: ${ROBINHOOD_BASE_URL:-https://api.robinhood.com}
+      ROBINHOOD_CLIENT_ID: ${ROBINHOOD_CLIENT_ID:-}
+      ROBINHOOD_PRIVATE_KEY: ${ROBINHOOD_PRIVATE_KEY:-}
+      RIHA_CRITIC_SIGNING_SECRET: ${RIHA_CRITIC_SIGNING_SECRET:-riha-enterprise-critic-hmac-key-2026}
+      RIHA_MCP_GATEWAY_URL: ${RIHA_MCP_GATEWAY_URL:-http://riha-mcp-gateway:8084}
+    networks:
+      - riha-network
+
+  riha-stock-ai-strategy-service:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-strategy-service
+    build:
+      context: ./riha-stock-ai-strategy-service
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-strategy-service
+    restart: unless-stopped
+    ports:
+      - "8093:8093"
+    environment:
+      SERVER_PORT: 8093
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/vchub_archive}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-vchub_user}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-vchub_secret}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      RIHA_VCH_API_URL: ${RIHA_VCH_API_URL:-http://riha-version-control-hub:8080}
+      RIHA_VALIDATOR_API_URL: ${RIHA_VALIDATOR_API_URL:-http://riha-schema-validator:8080}
+      RIHA_ORCHESTRATOR_API_URL: ${RIHA_ORCHESTRATOR_API_URL:-http://riha-topology-orchestrator:8080}
+      RIHA_MCP_GATEWAY_API_URL: ${RIHA_MCP_GATEWAY_API_URL:-http://riha-mcp-gateway:8084}
+      RIHA_CRITIC_API_URL: ${RIHA_CRITIC_API_URL:-http://riha-critic-engine:8085}
+      RIHA_MEMORY_API_URL: ${RIHA_MEMORY_API_URL:-http://riha-memory-service:8086}
+      RIHA_MARKET_INGESTOR_API_URL: http://riha-stock-ai-market-ingestor:8091
+      RIHA_ROBINHOOD_MCP_API_URL: http://riha-stock-ai-robinhood-mcp-server:8092
+    networks:
+      - riha-network
+
+  riha-stock-ai-web:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-web
+    build:
+      context: ./riha-stock-ai-web
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-web
+    restart: unless-stopped
+    ports:
+      - "5174:80"
+    depends_on:
+      - riha-stock-ai-strategy-service
+    networks:
+      - riha-network
+
+networks:
+  riha-network:
+    external: true
+    name: vchub-network
+
