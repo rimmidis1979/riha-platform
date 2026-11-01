@@ -9,6 +9,7 @@ target/
 
 # Node / Web dependencies & bundle
 node_modules/
+**/node_modules/
 dist/
 build/
 .pnpm-store/
