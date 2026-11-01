@@ -196,6 +196,21 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
     }
   };
 
+  const handleScanTopMovers = async () => {
+    try {
+      setLoading(true);
+      setProblem(null);
+      await fetch(`${STRATEGY_API_BASE}/api/v1/stock-ai/scanner/batch-scan?window=1D`, { method: 'POST' });
+      await loadWorkspace();
+    } catch (err) {
+      if (err instanceof ProblemDetailError) {
+        setProblem(err.problem);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleToggleAutoMode = async () => {
     const current = Boolean(execSummary?.buySellSummary?.autoTradeEnabled ?? true);
     try {
@@ -222,17 +237,23 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
         <div className="bg-zinc-900/75 backdrop-blur-md border border-zinc-800/90 rounded-xl p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
             <span>NET ACCOUNT EQUITY</span>
-            <span className="px-1.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-700/50 text-emerald-300 text-[10px]">
-              ROBINHOOD MCP
+            <span
+              className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold ${
+                acct.brokerageConnected
+                  ? 'bg-emerald-950/70 border-emerald-700/50 text-emerald-300'
+                  : 'bg-zinc-800/80 border-zinc-700 text-zinc-400'
+              }`}
+            >
+              {acct.brokerageConnected ? 'ROBINHOOD LIVE' : 'ROBINHOOD NOT CONNECTED ($0.00)'}
             </span>
           </div>
           <div className="text-2xl font-bold text-white mt-1.5">
-            ${Number(acct.netAccountEquityUsd || 145742.5).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ${Number(acct.netAccountEquityUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-zinc-400 mt-1 flex items-center justify-between">
             <span>Live Buying Power:</span>
             <span className="text-emerald-400 font-semibold">
-              ${Number(acct.liveBuyingPowerUsd || 89420.0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              ${Number(acct.liveBuyingPowerUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>
@@ -241,26 +262,48 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
         <div className="bg-zinc-900/75 backdrop-blur-md border border-zinc-800/90 rounded-xl p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
             <span>TODAY&apos;S TOTAL PROFIT / GAIN</span>
-            <span className="px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-600/60 text-emerald-300 text-[10px] font-bold">
-              +{Number(acct.todayTotalProfitPct || 1.84).toFixed(2)}%
+            <span
+              className={`px-2 py-0.5 rounded border text-[10px] font-bold ${
+                Number(acct.todayTotalProfitUsd ?? 0) >= 0
+                  ? 'bg-emerald-950/90 border-emerald-600/60 text-emerald-300'
+                  : 'bg-rose-950/90 border-rose-600/60 text-rose-300'
+              }`}
+            >
+              {Number(acct.todayTotalProfitPct ?? 0) >= 0 ? '+' : ''}
+              {Number(acct.todayTotalProfitPct ?? 0).toFixed(2)}%
             </span>
           </div>
           <div className="flex items-end justify-between mt-1.5">
-            <div className="text-2xl font-bold text-emerald-400">
-              +${Number(acct.todayTotalProfitUsd || 2300.92).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            <div
+              className={`text-2xl font-bold ${
+                Number(acct.todayTotalProfitUsd ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              }`}
+            >
+              {Number(acct.todayTotalProfitUsd ?? 0) >= 0 ? '+' : ''}$
+              {Number(acct.todayTotalProfitUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            {/* Mini SVG Sparkline */}
+            {/* SVG Sparkline (shows actual points if available, otherwise flat zero line) */}
             <svg className="w-20 h-8 overflow-visible" viewBox="0 0 80 28">
-              <polyline
-                fill="none"
-                stroke="#34d399"
-                strokeWidth="2"
-                points="0,24 16,20 32,15 48,11 64,6 80,2"
-              />
+              {acct.intradayPnlSparkline && acct.intradayPnlSparkline.length > 1 ? (
+                <polyline
+                  fill="none"
+                  stroke="#34d399"
+                  strokeWidth="2"
+                  points={acct.intradayPnlSparkline
+                    .map((pt: any, i: number, arr: any[]) => {
+                      const x = (i / (arr.length - 1)) * 80;
+                      const y = Math.max(2, Math.min(26, 26 - (Number(pt.pnl ?? 0) / 100) * 12));
+                      return `${x},${y}`;
+                    })
+                    .join(' ')}
+                />
+              ) : (
+                <line x1="0" y1="14" x2="80" y2="14" stroke="#52525b" strokeWidth="1.5" strokeDasharray="3 3" />
+              )}
             </svg>
           </div>
           <div className="text-[11px] text-zinc-400 mt-1">
-            Realized: +${Number(buySell.netRealizedPnlUsd || 1458.42).toFixed(2)} | Open: +${Number(buySell.unrealizedOpenPnlUsd || 842.5).toFixed(2)}
+            Realized: ${Number(buySell.netRealizedPnlUsd ?? 0).toFixed(2)} | Open: ${Number(buySell.unrealizedOpenPnlUsd ?? 0).toFixed(2)}
           </div>
         </div>
 
@@ -269,15 +312,17 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
             <span>CUMULATIVE AI PROFIT</span>
             <span className="text-emerald-400 font-semibold">
-              +{Number(acct.overallCumulativeProfitPct || 16.58).toFixed(2)}%
+              {Number(acct.overallCumulativeProfitPct ?? 0) >= 0 ? '+' : ''}
+              {Number(acct.overallCumulativeProfitPct ?? 0).toFixed(2)}%
             </span>
           </div>
           <div className="text-2xl font-bold text-white mt-1.5">
-            +${Number(acct.overallCumulativeProfitUsd || 20720.92).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {Number(acct.overallCumulativeProfitUsd ?? 0) >= 0 ? '+' : ''}$
+            {Number(acct.overallCumulativeProfitUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-zinc-400 mt-1 flex items-center justify-between">
-            <span>Win Rate: <strong className="text-emerald-400">{Number(acct.winRatePct || 84.6).toFixed(1)}%</strong></span>
-            <span>Profit Factor: <strong className="text-zinc-200">{acct.profitFactor || 2.84}x</strong></span>
+            <span>Win Rate: <strong className="text-emerald-400">{Number(acct.winRatePct ?? 0).toFixed(1)}%</strong></span>
+            <span>Profit Factor: <strong className="text-zinc-200">{acct.profitFactor ?? 0}x</strong></span>
           </div>
         </div>
 
@@ -302,8 +347,8 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
             </div>
           </div>
           <div className="text-[10px] text-zinc-500 mt-1 flex justify-between">
-            <span>Buy Vol: ${Number(buySell.buysTodayVolumeUsd || 0).toLocaleString()}</span>
-            <span>Sell Vol: ${Number(buySell.sellsTodayVolumeUsd || 0).toLocaleString()}</span>
+            <span>Buy Vol: ${Number(buySell.buysTodayVolumeUsd ?? 0).toLocaleString()}</span>
+            <span>Sell Vol: ${Number(buySell.sellsTodayVolumeUsd ?? 0).toLocaleString()}</span>
           </div>
         </div>
 
@@ -433,6 +478,14 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
               />
             </div>
             <button
+              onClick={handleScanTopMovers}
+              disabled={loading}
+              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5 shadow-sm transition"
+            >
+              <Zap className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Scan Top Movers
+            </button>
+            <button
               onClick={loadWorkspace}
               disabled={loading}
               className="px-2.5 py-1 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-zinc-300 flex items-center gap-1"
@@ -507,10 +560,10 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                       {/* Col 3: RVOL & Float / Borrow Fee */}
                       <td className="py-3 px-3">
                         <div className="text-emerald-400 font-semibold">
-                          {Number(row.relativeVolume || 1.5).toFixed(2)}x RVOL
+                          {Number(row.relativeVolume ?? 0).toFixed(2)}x RVOL
                         </div>
                         <div className="text-[10px] text-zinc-400">
-                          Float: {(Number(row.floatSize || 45000000) / 1_000_000).toFixed(1)}M | CTB: {Number(row.shortBorrowFeePct || 0.95).toFixed(2)}%
+                          Float: {row.floatSize ? (Number(row.floatSize) / 1_000_000).toFixed(1) + 'M' : '--'} | CTB: {row.shortBorrowFeePct !== undefined ? Number(row.shortBorrowFeePct).toFixed(2) + '%' : '--'}
                         </div>
                       </td>
 
@@ -554,12 +607,12 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                       {/* Col 6: AI Price Prediction */}
                       <td className="py-3 px-3">
                         <div className="text-emerald-300 font-semibold">
-                          Target: ${Number(row.predictedTargetPrice || 0).toFixed(2)} (
-                          {Number(row.predictedGainPct || 0) >= 0 ? '+' : ''}
-                          {Number(row.predictedGainPct || 0).toFixed(1)}%)
+                          Target: ${Number(row.predictedTargetPrice ?? 0).toFixed(2)} (
+                          {Number(row.predictedGainPct ?? 0) >= 0 ? '+' : ''}
+                          {Number(row.predictedGainPct ?? 0).toFixed(1)}%)
                         </div>
                         <div className="text-[10px] text-zinc-400">
-                          Stop: ${Number(row.stopLossPrice || 0).toFixed(2)} | R/R 1:{Number(row.riskRewardRatio || 2.75).toFixed(1)}
+                          Stop: ${Number(row.stopLossPrice ?? 0).toFixed(2)} | R/R 1:{row.riskRewardRatio ? Number(row.riskRewardRatio).toFixed(1) : '--'}
                         </div>
                       </td>
 
@@ -567,7 +620,7 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-white">
-                            {(Number(row.confidenceScore || 0.9) * 100).toFixed(0)}%
+                            {row.confidenceScore !== undefined ? (Number(row.confidenceScore) * 100).toFixed(0) + '%' : '--'}
                           </span>
                           <span
                             className={`text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1 ${
@@ -581,7 +634,7 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                             ) : (
                               <ShieldAlert className="w-3 h-3" />
                             )}
-                            {row.criticVerdict || 'APPROVED'}
+                            {row.criticVerdict || 'PENDING'}
                           </span>
                         </div>
                       </td>
@@ -770,12 +823,12 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                     const t = selectedAnalysis.underneathAnalysis?.technicalNodeSummary || {};
                     return (
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div>VWAP: <strong className="text-white">${Number(t.vwap || selectedAnalysis.currentLivePrice).toFixed(2)}</strong></div>
-                        <div>RSI-14: <strong className="text-emerald-400">{Number(t.rsi14 || 56).toFixed(2)}</strong></div>
-                        <div>EMA-9 / EMA-21: <strong className="text-zinc-200">${Number(t.ema9 || selectedAnalysis.currentLivePrice).toFixed(2)} / ${Number(t.ema21 || selectedAnalysis.currentLivePrice).toFixed(2)}</strong></div>
-                        <div>MACD Hist: <strong className="text-emerald-400">{Number(t.macdHistogram || 0.18).toFixed(3)}</strong></div>
-                        <div>RVOL: <strong className="text-emerald-400">{Number(t.relativeVolume || 2.5).toFixed(2)}x</strong></div>
-                        <div>Spread: <strong className="text-zinc-200">{Number(t.spreadBps || 5.8).toFixed(2)} bps</strong></div>
+                        <div>VWAP: <strong className="text-white">${t.vwap !== undefined ? Number(t.vwap).toFixed(2) : Number(selectedAnalysis.currentLivePrice ?? 0).toFixed(2)}</strong></div>
+                        <div>RSI-14: <strong className="text-emerald-400">{t.rsi14 !== undefined ? Number(t.rsi14).toFixed(2) : '--'}</strong></div>
+                        <div>EMA-9 / EMA-21: <strong className="text-zinc-200">${t.ema9 !== undefined ? Number(t.ema9).toFixed(2) : '--'} / ${t.ema21 !== undefined ? Number(t.ema21).toFixed(2) : '--'}</strong></div>
+                        <div>MACD Hist: <strong className="text-emerald-400">{t.macdHistogram !== undefined ? Number(t.macdHistogram).toFixed(3) : '--'}</strong></div>
+                        <div>RVOL: <strong className="text-emerald-400">{t.relativeVolume !== undefined ? Number(t.relativeVolume).toFixed(2) + 'x' : '--'}</strong></div>
+                        <div>Spread: <strong className="text-zinc-200">{t.spreadBps !== undefined ? Number(t.spreadBps).toFixed(2) + ' bps' : '--'}</strong></div>
                       </div>
                     );
                   })()}
@@ -784,8 +837,8 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                     const s = selectedAnalysis.underneathAnalysis?.secCatalystNodeSummary || {};
                     return (
                       <div className="space-y-1 text-[11px]">
-                        <div>CIK: <strong className="text-white">{s.cik || '0001045810'}</strong> | Dilution Risk: <strong className="text-emerald-400">{String(s.dilutionRiskDetected ?? false)}</strong></div>
-                        <div className="text-zinc-300">{s.catalystSummary || 'Live SEC EDGAR 8-K/10-Q filings verified via riha-stock-ai-market-ingestor.'}</div>
+                        <div>CIK: <strong className="text-white">{s.cik || '--'}</strong> | Dilution Risk: <strong className="text-emerald-400">{String(s.dilutionRiskDetected ?? false)}</strong></div>
+                        <div className="text-zinc-300">{s.catalystSummary || 'Live SEC EDGAR filings verified via riha-stock-ai-market-ingestor.'}</div>
                       </div>
                     );
                   })()}
@@ -794,8 +847,8 @@ export const ExecutiveCommandWorkspacePage: React.FC = () => {
                     const m = selectedAnalysis.underneathAnalysis?.episodicMemoryNodeSummary || {};
                     return (
                       <div className="space-y-1 text-[11px]">
-                        <div>Historical Setup Win Rate: <strong className="text-emerald-400">{m.historicalSetupWinRatePct || 78.4}%</strong> ({m.similarSetupsCount || 14} pgvector matches)</div>
-                        <div>Avg Historical Return: <strong className="text-emerald-300">+{m.averageHistoricalReturnPct || 6.85}%</strong></div>
+                        <div>Historical Setup Win Rate: <strong className="text-emerald-400">{m.historicalSetupWinRatePct ? m.historicalSetupWinRatePct + '%' : '--'}</strong> ({m.similarSetupsCount ?? 0} pgvector matches)</div>
+                        <div>Avg Historical Return: <strong className="text-emerald-300">{m.averageHistoricalReturnPct ? '+' + m.averageHistoricalReturnPct + '%' : '--'}</strong></div>
                       </div>
                     );
                   })()}

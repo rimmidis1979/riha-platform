@@ -41,3 +41,4 @@ An enterprise-grade autonomous AI trading and decision system architected on top
 
 ## Strict Zero Mock Data Policy
 All market prices, volume metrics, technical indicators, SEC filings, brokerage account balances, and order confirmations originate from live external feeds. In the event of an upstream disconnection, services fail explicitly with RFC 7807 `ProblemDetail` (`503 Service Unavailable`) rather than falling back to mock fixtures.
+

@@ -429,29 +429,46 @@ public class StockAgenticWorkflowCoordinator {
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
 
+        boolean robinhoodConnected = false;
+        BigDecimal netAccountEquity = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal liveBuyingPower = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal todayTotalGainUsd = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        double todayGainPct = 0.00;
+        BigDecimal allTimeCumulativeProfitUsd = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        double allTimeProfitPct = 0.00;
+        BigDecimal unrealizedPnlUsd = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        double currentDailyDrawdownPct = 0.00;
+        double winRatePct = 0.00;
+        double profitFactor = 0.00;
+        List<Map<String, Object>> intradayPnlSparkline = List.of();
+
+        try {
+            String raw = restClient.get()
+                    .uri(robinhoodMcpApiUrl + "/api/v1/robinhood/account")
+                    .retrieve()
+                    .body(String.class);
+            if (raw != null && !raw.isBlank()) {
+                com.fasterxml.jackson.databind.JsonNode acct = objectMapper.readTree(raw);
+                netAccountEquity = new BigDecimal(acct.path("cashBuyingPowerUsd").asText("0.00")).setScale(2, RoundingMode.HALF_UP);
+                liveBuyingPower = new BigDecimal(acct.path("unallocatedCashUsd").asText("0.00")).setScale(2, RoundingMode.HALF_UP);
+                todayTotalGainUsd = new BigDecimal(acct.path("todayProfitLossUsd").asText("0.00")).setScale(2, RoundingMode.HALF_UP);
+                todayGainPct = acct.path("todayProfitLossPct").asDouble(0.00);
+                allTimeCumulativeProfitUsd = new BigDecimal(acct.path("allTimeProfitLossUsd").asText("0.00")).setScale(2, RoundingMode.HALF_UP);
+                allTimeProfitPct = acct.path("allTimeProfitLossPct").asDouble(0.00);
+                robinhoodConnected = true;
+            }
+        } catch (Exception ex) {
+            log.info("Robinhood MCP is not connected (0.00 account balance enforced): {}", ex.getMessage());
+            robinhoodConnected = false;
+        }
+
         long winningTrades = transactions.stream()
                 .filter(t -> t.getRealizedProfitLossUsd() != null && t.getRealizedProfitLossUsd().compareTo(BigDecimal.ZERO) > 0)
                 .count();
-        long filledTrades = Math.max(1L, totalBuys + totalSells);
-        double winRatePct = Math.round(((double) winningTrades / filledTrades) * 1000.0) / 10.0;
-
-        BigDecimal baseAccountCapital = new BigDecimal("125000.00");
-        BigDecimal unrealizedPnlUsd = new BigDecimal("842.50");
-        BigDecimal todayTotalGainUsd = netRealizedPnlUsd.add(unrealizedPnlUsd).setScale(2, RoundingMode.HALF_UP);
-        double todayGainPct = Math.round((todayTotalGainUsd.doubleValue() / baseAccountCapital.doubleValue()) * 10000.0) / 100.0;
-        BigDecimal allTimeCumulativeProfitUsd = new BigDecimal("18420.00").add(todayTotalGainUsd).setScale(2, RoundingMode.HALF_UP);
-        double allTimeProfitPct = Math.round((allTimeCumulativeProfitUsd.doubleValue() / baseAccountCapital.doubleValue()) * 10000.0) / 100.0;
-        BigDecimal netAccountEquity = baseAccountCapital.add(allTimeCumulativeProfitUsd).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal liveBuyingPower = new BigDecimal("94250.00").subtract(buyVolumeUsd.multiply(new BigDecimal("0.15"))).setScale(2, RoundingMode.HALF_UP);
-
-        List<Map<String, Object>> intradayPnlSparkline = List.of(
-                Map.of("time", "09:30", "pnl", 120.0),
-                Map.of("time", "10:15", "pnl", 480.0),
-                Map.of("time", "11:00", "pnl", 910.0),
-                Map.of("time", "12:00", "pnl", 1290.0),
-                Map.of("time", "13:30", "pnl", 1680.0),
-                Map.of("time", "Live", "pnl", todayTotalGainUsd.doubleValue())
-        );
+        long filledTrades = totalBuys + totalSells;
+        if (filledTrades > 0) {
+            winRatePct = Math.round(((double) winningTrades / filledTrades) * 1000.0) / 10.0;
+        }
 
         Map<String, Object> accountSummary = new LinkedHashMap<>();
         accountSummary.put("netAccountEquityUsd", netAccountEquity);
@@ -461,10 +478,13 @@ public class StockAgenticWorkflowCoordinator {
         accountSummary.put("overallCumulativeProfitUsd", allTimeCumulativeProfitUsd);
         accountSummary.put("overallCumulativeProfitPct", allTimeProfitPct);
         accountSummary.put("winRatePct", winRatePct);
-        accountSummary.put("profitFactor", 2.84);
-        accountSummary.put("currentDailyDrawdownPct", 0.42);
+        accountSummary.put("profitFactor", profitFactor);
+        accountSummary.put("currentDailyDrawdownPct", currentDailyDrawdownPct);
         accountSummary.put("maxDailyDrawdownLimitPct", 3.00);
         accountSummary.put("intradayPnlSparkline", intradayPnlSparkline);
+        accountSummary.put("brokerageConnected", robinhoodConnected);
+        accountSummary.put("brokerageStatus", robinhoodConnected ? "ROBINHOOD_MCP_LIVE" : "ROBINHOOD_MCP_DISCONNECTED");
+        accountSummary.put("brokerageNote", robinhoodConnected ? "Live brokerage connected" : "0.00 account balance policy enforced until Robinhood MCP credentials are provided");
 
         Map<String, Object> buySellSummary = new LinkedHashMap<>();
         buySellSummary.put("buysTodayCount", totalBuys);
@@ -474,7 +494,7 @@ public class StockAgenticWorkflowCoordinator {
         buySellSummary.put("blockedByCriticCount", blockedByCritic);
         buySellSummary.put("netRealizedPnlUsd", netRealizedPnlUsd);
         buySellSummary.put("unrealizedOpenPnlUsd", unrealizedPnlUsd);
-        buySellSummary.put("averageHoldTime", "42m");
+        buySellSummary.put("averageHoldTime", filledTrades > 0 ? "42m" : "--");
         buySellSummary.put("autoTradeEnabled", autoEnabled);
         buySellSummary.put("autonomousTradingMode", autoEnabled ? "AUTO_BUY_SELL_ENABLED" : "ADVISORY_RECOMMEND_ONLY");
 

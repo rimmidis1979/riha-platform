@@ -259,51 +259,72 @@ public class LiveMarketWebSocketAndStreamService {
         if (underneath != null) {
             return underneath;
         }
-        LiveQuoteTechnicalsSnapshot snap = liveQuoteCache.get(symbol);
-        if (snap != null) {
-            Map<String, Object> fallbackMap = new LinkedHashMap<>();
-            fallbackMap.put("ticker", snap.ticker());
-            fallbackMap.put("lastPrice", snap.lastPrice());
-            fallbackMap.put("dayChangePct", 2.45);
-            fallbackMap.put("oneHourChangePct", 0.85);
-            fallbackMap.put("vwap", snap.vwap());
-            fallbackMap.put("ema9", snap.lastPrice());
-            fallbackMap.put("ema21", snap.vwap());
-            fallbackMap.put("rsi14", snap.rsi14());
-            fallbackMap.put("macd", 0.42);
-            fallbackMap.put("macdSignal", 0.28);
-            fallbackMap.put("macdHistogram", 0.14);
-            fallbackMap.put("relativeVolume", snap.relativeVolume());
-            fallbackMap.put("floatSize", snap.floatSize());
-            fallbackMap.put("shortBorrowFeePct", snap.shortBorrowFeeRate());
-            fallbackMap.put("shortBorrowFeeRate", snap.shortBorrowFeeRate());
-            fallbackMap.put("bidPrice", snap.bidPrice());
-            fallbackMap.put("askPrice", snap.askPrice());
-            fallbackMap.put("spreadBps", snap.spreadBps());
-            fallbackMap.put("dayVolume", snap.dayVolume());
-            fallbackMap.put("strategySignalDetected", snap.strategySignalDetected());
-            fallbackMap.put("intradaySeries", List.of());
-            fallbackMap.put("streamSource", snap.streamSource());
-            fallbackMap.put("capturedAt", snap.capturedAt().toString());
-            return fallbackMap;
-        }
         throw new LiveMarketFeedDisconnectedException(
-                "503 Service Unavailable - Live Market Feed Disconnected for ticker " + symbol,
+                "503 Service Unavailable - Live Market Feed Disconnected: Real-time technical depth is not available for " + symbol + ". Zero Mock Data Policy forbids simulated indicators.",
                 marketRestUrl,
                 symbol
         );
     }
 
+    public List<String> fetchLiveTopMoverTickers(String scrId, int count) {
+        try {
+            String url = String.format("https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&scrIds=%s&count=%d", scrId, count);
+            String raw = restClient.get()
+                    .uri(url)
+                    .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) RihaStockAiScreener/1.0")
+                    .retrieve()
+                    .body(String.class);
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode resultArr = root.path("finance").path("result");
+            if (resultArr.isArray() && !resultArr.isEmpty()) {
+                JsonNode quotes = resultArr.get(0).path("quotes");
+                List<String> symbols = new ArrayList<>();
+                if (quotes.isArray()) {
+                    for (JsonNode q : quotes) {
+                        String sym = q.path("symbol").asText("").trim().toUpperCase(Locale.ROOT);
+                        if (!sym.isBlank() && !sym.contains("^") && !sym.contains("=") && !sym.contains("/")) {
+                            symbols.add(sym);
+                        }
+                    }
+                }
+                if (!symbols.isEmpty()) {
+                    return symbols;
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Live Yahoo screener '{}' fetch note: {}", scrId, ex.getMessage());
+        }
+        return List.of();
+    }
+
     public List<Map<String, Object>> fetchStocksByAlgorithm(String date, String algorithmRaw, int limit) {
         DiscoveryAlgorithm algorithm = DiscoveryAlgorithm.fromString(algorithmRaw);
-        List<String> tickers = Arrays.stream(configuredWatchlist.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
+        List<String> candidateTickers = new ArrayList<>();
+
+        switch (algorithm) {
+            case TOP_GAINERS_DAY -> candidateTickers.addAll(fetchLiveTopMoverTickers("day_gainers", 15));
+            case RVOL_BREAKOUT -> candidateTickers.addAll(fetchLiveTopMoverTickers("most_actives", 15));
+            case SHORT_SQUEEZE_MICROCAP, VWAP_RECLAIM_MOMENTUM -> {
+                candidateTickers.addAll(fetchLiveTopMoverTickers("day_gainers", 10));
+                candidateTickers.addAll(fetchLiveTopMoverTickers("most_actives", 10));
+            }
+            case HIGH_CONVICTION_MULTI_FACTOR, ALL -> {
+                candidateTickers.addAll(fetchLiveTopMoverTickers("day_gainers", 8));
+                candidateTickers.addAll(fetchLiveTopMoverTickers("most_actives", 8));
+            }
+        }
+
+        // Also ensure configured watchlist is merged
+        for (String w : configuredWatchlist.split(",")) {
+            String sym = w.trim().toUpperCase(Locale.ROOT);
+            if (!sym.isEmpty() && !candidateTickers.contains(sym)) {
+                candidateTickers.add(sym);
+            }
+        }
 
         List<Map<String, Object>> enrichedList = new ArrayList<>();
         Exception lastError = null;
-        for (String ticker : tickers) {
+        for (String ticker : candidateTickers) {
             try {
                 Map<String, Object> tech = new LinkedHashMap<>(getUnderneathTechnicalSnapshot(ticker));
                 String assignedAlgo = classifyPrimaryAlgorithm(tech);
@@ -748,10 +769,15 @@ public class LiveMarketWebSocketAndStreamService {
     }
 
     public List<LiveQuoteTechnicalsSnapshot> fetchTopMarketMovers(String window) {
-        List<String> tickers = Arrays.stream(configuredWatchlist.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
+        List<String> tickers = new ArrayList<>();
+        tickers.addAll(fetchLiveTopMoverTickers("day_gainers", 10));
+        tickers.addAll(fetchLiveTopMoverTickers("most_actives", 10));
+        for (String w : configuredWatchlist.split(",")) {
+            String sym = w.trim().toUpperCase(Locale.ROOT);
+            if (!sym.isEmpty() && !tickers.contains(sym)) {
+                tickers.add(sym);
+            }
+        }
         List<LiveQuoteTechnicalsSnapshot> snapshots = new ArrayList<>();
         Exception lastError = null;
         for (String ticker : tickers) {

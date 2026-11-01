@@ -1,0 +1,50 @@
+# ==============================================================================
+# RIHA ENTERPRISE PLATFORM - PRODUCTION MULTI-STAGE DOCKERFILE (SPRING BOOT)
+# Target Architecture: AWS ECS Fargate (Linux/amd64 or Linux/arm64)
+# Java Version: Eclipse Temurin OpenJDK 21 (Alpine Linux)
+# ==============================================================================
+
+# STAGE 1: Maven Build Stage
+FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
+
+WORKDIR /build
+
+# Copy root or module pom.xml for dependency layer caching
+COPY pom.xml ./
+RUN mvn dependency:go-offline -B || true
+
+# Copy source code and compile optimized production JAR
+COPY src ./src
+RUN mvn clean package -DskipTests -B
+
+# STAGE 2: Hardened, Non-Root Runtime Stage
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+LABEL maintainer="RIHA Software Solutions <dev@rihasoftwaresolutions.com>"
+LABEL organization="RIHA Software Solutions"
+LABEL scp.compliance="NoSecretsManager"
+
+# Security: Install curl/bash for health probes, create unprivileged user
+RUN apk add --no-cache curl bash tzdata && \
+    addgroup -S rihagroup && \
+    adduser -S riha -G rihagroup -h /app
+
+WORKDIR /app
+
+# Copy executable jar from builder stage
+COPY --from=builder /build/target/*.jar /app/app.jar
+RUN chown -R riha:rihagroup /app
+
+# Switch to unprivileged runtime user
+USER riha
+
+# Standard Spring Boot containerized JVM memory & GC ergonomics
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
+ENV SERVER_PORT=8080
+
+EXPOSE ${SERVER_PORT}
+
+HEALTHCHECK --interval=20s --timeout=5s --retries=3 --start-period=30s \
+  CMD curl -f -s http://localhost:${SERVER_PORT}/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -Dserver.port=${SERVER_PORT} -jar /app/app.jar"]

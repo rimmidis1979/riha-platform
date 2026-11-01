@@ -1,0 +1,160 @@
+# ==============================================================================
+# RIHA ENTERPRISE PLATFORM - ECS SERVICE CONNECT NGINX REVERSE PROXY TEMPLATE
+# AWS ECS Fargate Service Connect Namespace: riha.internal
+# ==============================================================================
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name localhost;
+
+    # Performance & Gzip Compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/json application/javascript;
+
+    # Single Page Application (SPA) Static Files
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ==========================================================================
+    # STOCK AI PRODUCT SUITE (RIHA_STOCK_AI)
+    # ==========================================================================
+
+    # Stock AI Strategy & Execution REST APIs
+    location /api/v1/stock-ai/ {
+        proxy_pass http://riha-stock-ai-strategy-service:8093/api/v1/stock-ai/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Stock AI Real-Time SSE Stream (Buffering & Cache strictly disabled)
+    location /api/v1/stock-ai/stream/ {
+        proxy_pass http://riha-stock-ai-strategy-service:8093/api/v1/stock-ai/stream/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    # Market Ingestor Direct Endpoints
+    location /api/v1/market/ {
+        proxy_pass http://riha-stock-ai-market-ingestor:8091/api/v1/market/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Robinhood Brokerage MCP Server Direct Endpoints
+    location /api/v1/robinhood/ {
+        proxy_pass http://riha-stock-ai-robinhood-mcp-server:8092/api/v1/robinhood/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ==========================================================================
+    # CORE AGENTIC AI PLATFORM MICROSERVICES
+    # ==========================================================================
+
+    # Version Control Hub (Prompts & Contracts)
+    location /api/v1/vch/ {
+        proxy_pass http://riha-version-control-hub:8081/api/v1/vch/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Schema Validator
+    location /api/v1/validator/ {
+        proxy_pass http://riha-schema-validator:8082/api/v1/validator/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/v1/audits {
+        proxy_pass http://riha-schema-validator:8082/api/v1/audits;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Topology Orchestrator (DAG Pipeline)
+    location /api/v1/orchestrator/ {
+        proxy_pass http://riha-topology-orchestrator:8083/api/v1/orchestrator/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # MCP Gateway
+    location /api/v1/mcp/ {
+        proxy_pass http://riha-mcp-gateway:8084/api/v1/mcp/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Critic Engine (Risk & SpEL validation)
+    location /api/v1/critic/ {
+        proxy_pass http://riha-critic-engine:8085/api/v1/critic/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Memory Service (Episodic Vector DB)
+    location /api/v1/memory/ {
+        proxy_pass http://riha-memory-service:8086/api/v1/memory/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Evaluation Monitor & Telemetry (SSE & Metrics)
+    location /api/v1/eval/ {
+        proxy_pass http://riha-eval-monitor:8087/api/v1/eval/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+}
