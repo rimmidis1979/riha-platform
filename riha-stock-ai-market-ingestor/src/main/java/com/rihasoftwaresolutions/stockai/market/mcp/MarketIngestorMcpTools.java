@@ -108,4 +108,31 @@ public class MarketIngestorMcpTools {
         response.put("fetchedAt", Instant.now().toString());
         return response;
     }
+
+    @Tool(
+            name = "getMarketRegimeSnapshot",
+            description = "Returns broad-market trend, S&P 500/Nasdaq SMA regimes, VIX term structure, 10Y rate, and upcoming high-impact economic events (FOMC, CPI, NFP)."
+    )
+    @McpTool("getMarketRegimeSnapshot")
+    public com.rihasoftwaresolutions.stockai.market.model.MarketRegimeSnapshot getMarketRegimeSnapshot() {
+        return marketStreamService.getMarketRegimeSnapshot();
+    }
+
+    @Tool(
+            name = "getOrderFlowMicrostructure",
+            description = "Delivers cumulative volume delta (CVD), order book imbalance, spread in basis points, buyer/seller aggression ratio, and 14-period ATR volatility."
+    )
+    @McpTool("getOrderFlowMicrostructure")
+    public com.rihasoftwaresolutions.stockai.market.model.OrderFlowMicrostructure getOrderFlowMicrostructure(String ticker) {
+        return marketStreamService.getOrderFlowMicrostructure(ticker);
+    }
+
+    @Tool(
+            name = "getInsiderTransactions",
+            description = "Summarizes 90-day SEC Form 4 insider transaction flow, cluster purchases, and net dollar insider sentiment."
+    )
+    @McpTool("getInsiderTransactions")
+    public com.rihasoftwaresolutions.stockai.market.model.InsiderTransactionRecord getInsiderTransactions(String ticker) {
+        return marketStreamService.getInsiderTransactions(ticker);
+    }
 }

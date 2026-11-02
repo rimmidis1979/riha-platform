@@ -1,0 +1,24 @@
+server:
+  port: ${SERVER_PORT:8096}
+
+spring:
+  application:
+    name: riha-stock-ai-sentiment-news-service
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+riha:
+  stockai:
+    product-id: RIHA_STOCK_AI
+    sentiment:
+      kafka-topic-catalysts: riha.stockai.catalysts.scored
+      min-confidence-threshold: 0.70
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

@@ -1,0 +1,22 @@
+server:
+  port: ${SERVER_PORT:8095}
+
+spring:
+  application:
+    name: riha-stock-ai-backtest-engine
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+
+riha:
+  stockai:
+    product-id: RIHA_STOCK_AI
+    backtest:
+      default-initial-capital: 100000.00
+      default-slippage-bps: 4.5
+      shadow-mode-enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

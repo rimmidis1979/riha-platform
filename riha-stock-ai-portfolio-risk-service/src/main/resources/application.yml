@@ -1,0 +1,33 @@
+server:
+  port: ${SERVER_PORT:8094}
+
+spring:
+  application:
+    name: riha-stock-ai-portfolio-risk-service
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: riha-stock-ai-risk-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+riha:
+  stockai:
+    product-id: RIHA_STOCK_AI
+    risk:
+      max-sector-exposure-pct: 25.0
+      max-single-stock-pct: 10.0
+      max-portfolio-beta: 1.35
+      var-rejection-threshold-pct: 3.5
+      tier1-drawdown-threshold-pct: -2.0
+      tier2-drawdown-threshold-pct: -3.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

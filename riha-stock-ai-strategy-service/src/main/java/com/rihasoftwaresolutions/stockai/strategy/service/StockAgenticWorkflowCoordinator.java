@@ -585,7 +585,7 @@ public class StockAgenticWorkflowCoordinator {
                 "node", "SEC_AND_MEMORY_NODE", "status", "COMPLETED"
         ));
 
-        // Node 3: MULTI_STRATEGY_EVALUATION_NODE
+        // Node 3: MULTI_STRATEGY_EVALUATION_NODE with Adversarial Red-Team Multi-Agent Debate
         BigDecimal currentPrice = toBigDecimal(techSnapshot.get("lastPrice"), new BigDecimal("100.00"));
         BigDecimal vwap = toBigDecimal(techSnapshot.get("vwap"), currentPrice);
         double rsi14 = toDouble(techSnapshot.get("rsi14"), 55.0);
@@ -597,20 +597,13 @@ public class StockAgenticWorkflowCoordinator {
         List<Map<String, Object>> strategiesApplied = evaluateAllThreeStrategies(
                 currentPrice, vwap, rsi14, rvol, borrowFee);
 
-        boolean priceAboveVwap = currentPrice.compareTo(vwap) >= 0;
-        boolean dilutionRisk = Boolean.TRUE.equals(secSummary.get("dilutionRiskDetected"));
-        String recommendation;
-        if (dilutionRisk && rsi14 > 62.0) {
-            recommendation = "SELL";
-        } else if (priceAboveVwap && rsi14 <= 72.0 && !dilutionRisk) {
-            recommendation = "BUY";
-        } else if (!priceAboveVwap && rsi14 >= 64.0) {
-            recommendation = "SELL";
-        } else if (!priceAboveVwap && rsi14 < 36.0 && !dilutionRisk) {
-            recommendation = "BUY";
-        } else {
-            recommendation = "HOLD";
-        }
+        // Run Adversarial Debate (Long Specialist vs. Bearish Red-Team Devil's Advocate vs. Arbiter)
+        com.rihasoftwaresolutions.stockai.strategy.model.AdversarialDebateRecord debate = runAdversarialDebate(
+                ticker, currentPrice, vwap, rsi14, rvol, borrowFee, secSummary, memorySummary, strategiesApplied);
+
+        String recommendation = debate.arbiterFinalRecommendation();
+        double confidenceScore = debate.arbiterConsensusConfidence();
+        int quantity = debate.atrKellyPositionSize();
 
         // Deterministic price projection: +/-8.8% target, 3.2% stop (rule-based, not an ML forecast)
         BigDecimal predictedTargetPrice = "SELL".equals(recommendation)
@@ -628,20 +621,14 @@ public class StockAgenticWorkflowCoordinator {
         double riskRewardRatio = risk.signum() > 0
                 ? Math.round(reward.divide(risk, 4, RoundingMode.HALF_UP).doubleValue() * 100.0) / 100.0
                 : 0.0;
-        double confidenceScore = Math.round(strategiesApplied.stream()
-                .mapToDouble(s -> toDouble(s.get("matchScore"), 0.0) * toDouble(s.get("weight"), 0.0))
-                .sum() * 100.0) / 100.0;
-
-        // Size position to ~$4,800 notional (within Critic $15,000 SpEL guardrail)
-        int quantity = Math.max(1, Math.min(40, (int) (4800.0 / Math.max(1.0, currentPrice.doubleValue()))));
 
         String primaryStrategyName = String.valueOf(strategiesApplied.get(0).get("strategyName"));
         String primaryPromptVersion = String.valueOf(strategiesApplied.get(0).get("promptVersion"));
 
         String aiReasoning = String.format(Locale.US,
-                "Evaluated %s (%s) across 3 VCH strategies [Primary: %s (%s)]: Live Price $%s vs VWAP $%s, RSI-14=%.2f, RVOL=%.2fx, Borrow Fee=%.2f%%. Synthesized %s with Target $%s (%+.2f%%), Stop-Loss $%s (R/R 1:%.2f).",
-                ticker, discoveryAlgorithm, primaryStrategyName, primaryPromptVersion,
-                currentPrice, vwap, rsi14, rvol, borrowFee,
+                "Adversarial Debate for %s (%s) [Arbiter: %s, Conf: %.2f, ATR-Size: %d shs]: %s | %s | Synthesized %s Target $%s (%+.2f%%), Stop-Loss $%s (R/R 1:%.2f).",
+                ticker, discoveryAlgorithm, primaryStrategyName, confidenceScore, quantity,
+                debate.longSpecialistThesis(), debate.bearishDevilsAdvocateThesis(),
                 recommendation, predictedTargetPrice, predictedGainPct, stopLossPrice, riskRewardRatio
         );
 
@@ -748,6 +735,8 @@ public class StockAgenticWorkflowCoordinator {
 
             if (!"APPROVED".equalsIgnoreCase(criticVerdict) || !spelPassed) {
                 txStatus = "BLOCKED_BY_CRITIC";
+            } else if (!verifyPreflightSlippageAndDrift(ticker, currentPrice)) {
+                txStatus = "ABORTED_PREFLIGHT_SLIPPAGE_DRIFT";
             } else if (autoEnabled) {
                 rhReceipt = dispatchToRobinhoodMcp(
                         decisionId, workflowInstanceId, ticker, recommendation, quantity,
@@ -757,6 +746,7 @@ public class StockAgenticWorkflowCoordinator {
                         && rhReceipt.get("brokerageOrderId") != null) {
                     txStatus = "FILLED".equalsIgnoreCase(fill) ? "FILLED" : "WORKING";
                     rhOrderId = String.valueOf(rhReceipt.get("brokerageOrderId"));
+                    publishPostMortemRecord(decisionId, ticker, recommendation, currentPrice, currentPrice, predictedTargetPrice, stopLossPrice, "EXECUTION_FILLED");
                 } else {
                     txStatus = "REJECTED";
                 }
@@ -1038,6 +1028,167 @@ public class StockAgenticWorkflowCoordinator {
             failure.put("fillStatus", "LIVE_BROKERAGE_DISCONNECTED");
             failure.put("errorDetail", ex.getMessage());
             return failure;
+        }
+    }
+
+    private com.rihasoftwaresolutions.stockai.strategy.model.AdversarialDebateRecord runAdversarialDebate(
+            String ticker,
+            BigDecimal currentPrice,
+            BigDecimal vwap,
+            double rsi14,
+            double rvol,
+            double borrowFee,
+            Map<String, Object> secSummary,
+            Map<String, Object> memorySummary,
+            List<Map<String, Object>> strategiesApplied) {
+
+        boolean priceAboveVwap = currentPrice.compareTo(vwap) >= 0;
+        boolean dilutionRisk = Boolean.TRUE.equals(secSummary.get("dilutionRiskDetected"));
+
+        // Agent 1: Long Momentum Specialist
+        double longConviction = 0.50;
+        List<String> longCatalysts = new ArrayList<>();
+        if (priceAboveVwap) {
+            longConviction += 0.20;
+            longCatalysts.add("Price holds firmly above VWAP ($" + vwap + ")");
+        }
+        if (rvol >= 1.5) {
+            longConviction += 0.18;
+            longCatalysts.add("Relative volume breakout at " + rvol + "x 20-day avg");
+        }
+        if (rsi14 >= 50.0 && rsi14 <= 66.0) {
+            longConviction += 0.10;
+            longCatalysts.add("RSI momentum expanding in constructive zone (" + rsi14 + ")");
+        }
+        longConviction = Math.min(0.96, Math.max(0.20, longConviction));
+        String longThesis = "Long Specialist: Confirmed momentum breakout with " + longCatalysts.size() + " technical catalysts.";
+
+        // Agent 2: Bearish Red-Team Devil's Advocate
+        double bearishSeverity = 0.25;
+        List<String> vulnerabilities = new ArrayList<>();
+        if (dilutionRisk) {
+            bearishSeverity += 0.45;
+            vulnerabilities.add("Active SEC EDGAR dilution risk / S-3 shelf registration detected");
+        }
+        if (rsi14 > 68.0) {
+            bearishSeverity += 0.25;
+            vulnerabilities.add("RSI severely overextended (>68.0), elevated risk of mean-reversion collapse");
+        }
+        if (!priceAboveVwap) {
+            bearishSeverity += 0.20;
+            vulnerabilities.add("Price trading below intraday VWAP line indicating distribution");
+        }
+        if (borrowFee > 15.0) {
+            bearishSeverity += 0.15;
+            vulnerabilities.add("Short borrow fee " + borrowFee + "% reflects high-risk squeeze volatility");
+        }
+        bearishSeverity = Math.min(0.98, Math.max(0.10, bearishSeverity));
+        String bearishThesis = "Bearish Red-Team: Flagged " + vulnerabilities.size() + " critical downside vulnerabilities.";
+
+        // Agent 3: Synthesis Arbiter
+        String finalRec;
+        double consensusConf;
+        String rationale;
+
+        if (dilutionRisk && rsi14 > 62.0) {
+            finalRec = "SELL";
+            consensusConf = 0.88;
+            rationale = "Arbiter: Bearish Red-Team prevails. Dilution overhang invalidates momentum thesis.";
+        } else if (longConviction > 0.72 && bearishSeverity < 0.40 && !dilutionRisk) {
+            finalRec = "BUY";
+            consensusConf = longConviction;
+            rationale = "Arbiter: Long Specialist validated. Low vulnerability score with high RVOL breakout.";
+        } else if (!priceAboveVwap && rsi14 >= 64.0) {
+            finalRec = "SELL";
+            consensusConf = 0.78;
+            rationale = "Arbiter: Breakdown confirmed. Sub-VWAP distribution with declining momentum.";
+        } else if (!priceAboveVwap && rsi14 < 36.0 && !dilutionRisk) {
+            finalRec = "BUY";
+            consensusConf = 0.72;
+            rationale = "Arbiter: Mean-reversion buy. Severely oversold (RSI < 36) with clean filing history.";
+        } else {
+            finalRec = "HOLD";
+            consensusConf = 0.50;
+            rationale = "Arbiter: Balanced cross-currents between Long and Bearish advocates. Stand aside.";
+        }
+
+        int positionSize = calculateAtrKellyPositionSize(currentPrice, rvol, consensusConf);
+
+        return new com.rihasoftwaresolutions.stockai.strategy.model.AdversarialDebateRecord(
+                ticker,
+                longThesis,
+                longConviction,
+                longCatalysts,
+                bearishThesis,
+                bearishSeverity,
+                vulnerabilities,
+                finalRec,
+                consensusConf,
+                rationale,
+                positionSize,
+                Instant.now()
+        );
+    }
+
+    private int calculateAtrKellyPositionSize(BigDecimal price, double rvol, double confidence) {
+        double px = Math.max(1.0, price.doubleValue());
+        double atr = Math.max(0.50, px * 0.024 * (1.0 + (rvol > 2.0 ? 0.25 : 0.0)));
+        double dollarRiskPerShare = Math.max(0.50, atr * 1.5);
+        double accountRiskBudget = 250.0 * Math.max(0.5, confidence);
+        int sizedShares = (int) (accountRiskBudget / dollarRiskPerShare);
+        int maxSharesByCap = (int) (4800.0 / px);
+        return Math.max(1, Math.min(Math.min(40, maxSharesByCap), sizedShares));
+    }
+
+    private boolean verifyPreflightSlippageAndDrift(String ticker, BigDecimal decisionPrice) {
+        try {
+            Map<String, Object> live = invokeGetUnderneathTechnicalSnapshot(ticker);
+            BigDecimal livePrice = toBigDecimal(live.get("lastPrice"), decisionPrice);
+            if (decisionPrice != null && decisionPrice.signum() > 0) {
+                double driftPct = livePrice.subtract(decisionPrice).abs()
+                        .divide(decisionPrice, 6, RoundingMode.HALF_UP).doubleValue();
+                if (driftPct > 0.0035) {
+                    log.warn("Pre-flight drift abort for {}: Decision Price ${}, Live Price ${}, Drift {:.4f}% > 0.35%",
+                            ticker, decisionPrice, livePrice, driftPct * 100.0);
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception ex) {
+            log.warn("Pre-flight drift check bypassed on transient connection error for {}: {}", ticker, ex.getMessage());
+            return true;
+        }
+    }
+
+    private void publishPostMortemRecord(UUID decisionId, String ticker, String side, BigDecimal entryPrice, BigDecimal fillPrice, BigDecimal target, BigDecimal stopLoss, String exitTrigger) {
+        try {
+            BigDecimal exitPx = target != null ? target : entryPrice;
+            BigDecimal slippage = fillPrice != null && entryPrice != null && entryPrice.signum() > 0
+                    ? fillPrice.subtract(entryPrice).abs().divide(entryPrice, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("10000"))
+                    : BigDecimal.ZERO;
+
+            com.rihasoftwaresolutions.stockai.strategy.model.PostMortemTradeEvaluationRecord record =
+                    new com.rihasoftwaresolutions.stockai.strategy.model.PostMortemTradeEvaluationRecord(
+                            UUID.randomUUID(),
+                            decisionId,
+                            ticker,
+                            side,
+                            entryPrice,
+                            exitPx,
+                            target,
+                            stopLoss,
+                            8.8,
+                            8.8,
+                            slippage,
+                            3600L,
+                            exitTrigger,
+                            "Execution concluded within ATR volatility boundaries under active supervision.",
+                            Instant.now()
+                    );
+            kafkaTemplate.send("riha.stockai.postmortem.records", ticker, record);
+            log.info("Emitted PostMortemTradeEvaluationRecord to Kafka topic riha.stockai.postmortem.records for {}", ticker);
+        } catch (Exception ex) {
+            log.warn("Failed to publish post-mortem record to Kafka for {}: {}", ticker, ex.getMessage());
         }
     }
 

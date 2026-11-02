@@ -8,11 +8,12 @@ import { LoginPage } from './pages/LoginPage';
 import { AccountPage } from './pages/AccountPage';
 import { TrendingStocksPage } from './pages/TrendingStocksPage';
 import { PersonalizedWatchlist } from './components/trending/PersonalizedWatchlist';
+import { StrategyAnalysisPage } from './pages/StrategyAnalysisPage';
 import { ShieldCheck, Cpu } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'trending' | 'watchlist'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'trending' | 'watchlist' | 'strategies'>('account');
 
   if (isLoading) {
     return (
@@ -43,6 +44,10 @@ const MainAppContent: React.FC = () => {
 
         {activeTab === 'trending' && (
           <TrendingStocksPage />
+        )}
+
+        {activeTab === 'strategies' && (
+          <StrategyAnalysisPage />
         )}
 
         {activeTab === 'watchlist' && (

@@ -70,6 +70,12 @@ public class RobinhoodLiveBrokerageService {
     @Value("${server.port:8092}")
     private int serverPort;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SyntheticBracketOrderService bracketOrderService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
+
     public RobinhoodLiveBrokerageService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         this.restClient = RestClient.builder().build();
@@ -297,7 +303,7 @@ public class RobinhoodLiveBrokerageService {
             }
             BigDecimal slippage = extractBigDecimal(orderNode, "slippage_bps", "slippageBps");
 
-            return new TradeOrderExecutionReceipt(
+            TradeOrderExecutionReceipt receipt = new TradeOrderExecutionReceipt(
                     brokerageOrderId,
                     request.decisionId(),
                     request.workflowInstanceId(),
@@ -312,6 +318,40 @@ public class RobinhoodLiveBrokerageService {
                     true,
                     Instant.now()
             );
+
+            // Publish execution lifecycle event to Kafka
+            if (kafkaTemplate != null) {
+                try {
+                    com.rihasoftwaresolutions.stockai.robinhoodmcp.model.ExecutionLifecycleEvent event =
+                            new com.rihasoftwaresolutions.stockai.robinhoodmcp.model.ExecutionLifecycleEvent(
+                                    "EVT-" + UUID.randomUUID(),
+                                    "FILLED".equalsIgnoreCase(status) ? "ORDER_FILLED" : "ORDER_SUBMITTED",
+                                    request.decisionId(),
+                                    request.workflowInstanceId(),
+                                    brokerageOrderId,
+                                    request.ticker(),
+                                    request.action(),
+                                    request.orderType() != null ? request.orderType() : "LIMIT",
+                                    request.quantity(),
+                                    request.limitPrice(),
+                                    fillPrice,
+                                    slippage,
+                                    BigDecimal.ZERO,
+                                    status,
+                                    Instant.now()
+                            );
+                    kafkaTemplate.send("riha.stockai.execution.events", request.ticker(), event);
+                } catch (Exception kex) {
+                    log.warn("Kafka execution event stream error: {}", kex.getMessage());
+                }
+            }
+
+            // Register software-emulated Synthetic Bracket Order
+            if (bracketOrderService != null) {
+                bracketOrderService.registerBracketOrder(request, receipt);
+            }
+
+            return receipt;
         } catch (LiveBrokerageDisconnectedException lde) {
             throw lde;
         } catch (Exception ex) {

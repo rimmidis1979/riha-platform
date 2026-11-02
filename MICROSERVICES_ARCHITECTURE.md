@@ -538,3 +538,26 @@ In AWS production:
 * **Ingress**: AWS Application Load Balancer (ALB) terminating HTTPS/TLS with ACM certificates, routing `/api/v1/stock-ai/*` and `/api/v1/market/*` to target groups.
 * **Secrets Management**: Sensitive credentials (`ROBINHOOD_BEARER_TOKEN`, `RIHA_CRITIC_SIGNING_SECRET`, `SPRING_DATASOURCE_PASSWORD`) are injected dynamically via AWS Secrets Manager using IAM Task Execution Roles.
 * **Observability**: Spring Boot Actuator endpoints (`/actuator/health`, `/actuator/prometheus`) scraped by Prometheus / Amazon CloudWatch Container Insights; distributed traces exported to Jaeger via OpenTelemetry.
+
+---
+
+## 7. Institutional-Grade Microservice Suite Expansion
+
+To scale the platform into an institutional-grade, multi-agent algorithmic system, capabilities are strictly partitioned between high-frequency execution pipelines and isolated analytical tasks across six dedicated microservices:
+
+| Microservice | Port | Domain | Core Ingress / Egress | Key Capabilities |
+| :--- | :---: | :--- | :--- | :--- |
+| **`riha-stock-ai-market-ingestor`** | `8091` | Market Sensing | WebSockets, SEC EDGAR $\to$ Redis, Kafka | Macro regime feeds, L2 depth & CVD, 14-period ATR, SEC Form 4 insider trading |
+| **`riha-stock-ai-strategy-service`** | `8093` | Agentic Reasoning | REST, Kafka $\to$ Postgres, SSE, MCP | Adversarial 3-agent debate DAG, ATR/Kelly position sizing, pre-flight slippage checks ($<35$ bps), trailing stops |
+| **`riha-stock-ai-robinhood-mcp-server`** | `8092` | Execution Bridge | MCP JSON-RPC, Robinhood API $\to$ Kafka | HMAC validation, smart order routing (SOR), synthetic bracket & OCO orders, token heartbeats |
+| **`riha-stock-ai-portfolio-risk-service`** | `8094` | Risk Guardian | REST, Kafka $\to$ Redis, Postgres | Covariance matrix ($\rho > 0.75$ warnings), 1D 95% VaR & CVaR, sector concentration caps ($\le 25\%$), drawdown circuit breakers (-2% / -3%) |
+| **`riha-stock-ai-backtest-engine`** | `8095` | Simulation & Testing | Parquet / S3, Kafka $\to$ Postgres, Web UI | Historical tick replay, realistic square-root slippage modeling, paper shadow mode, institutional tearsheets (Sharpe, Sortino, Calmar) |
+| **`riha-stock-ai-sentiment-news-service`** | `8096` | Unstructured NLP | RSS, REST Wires $\to$ Redis, Kafka | News wire deduplication (SHA-256), sub-20ms FinBERT sentiment inference, breaking catalyst urgency classification |
+
+---
+
+## 8. Codegen Prompts & Implementation Reference
+
+For modular, production-ready implementation instructions tailored for AI coding agents, refer to [`stock-ai/CODEGEN_PROMPTS.md`](file:///Users/ram-ai/Documents/development/code/stock/stock-ai/CODEGEN_PROMPTS.md).
+
+

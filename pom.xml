@@ -15,6 +15,9 @@
         <module>riha-stock-ai-market-ingestor</module>
         <module>riha-stock-ai-robinhood-mcp-server</module>
         <module>riha-stock-ai-strategy-service</module>
+        <module>riha-stock-ai-portfolio-risk-service</module>
+        <module>riha-stock-ai-backtest-engine</module>
+        <module>riha-stock-ai-sentiment-news-service</module>
     </modules>
 </project>
 

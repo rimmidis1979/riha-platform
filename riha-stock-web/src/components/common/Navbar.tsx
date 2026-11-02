@@ -7,11 +7,12 @@ import {
   Star,
   LogOut,
   Flame,
+  Layers,
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'account' | 'trending' | 'watchlist';
-  setActiveTab: (tab: 'account' | 'trending' | 'watchlist') => void;
+  activeTab: 'account' | 'trending' | 'watchlist' | 'strategies';
+  setActiveTab: (tab: 'account' | 'trending' | 'watchlist' | 'strategies') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
@@ -70,6 +71,21 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               </button>
 
               <button
+                onClick={() => setActiveTab('strategies')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === 'strategies'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <Layers className="w-4 h-4 text-indigo-600" />
+                <span>Strategy Diagnostics</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold uppercase tracking-wider">
+                  Exclusive
+                </span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('watchlist')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                   activeTab === 'watchlist'
@@ -99,17 +115,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                     className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-500/30"
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-sm text-blue-700">
-                    {user?.name?.charAt(0) || 'U'}
+                  <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs">
+                    {user?.name?.slice(0, 2).toUpperCase() || 'TR'}
                   </div>
                 )}
-
                 {isGoogleUser && (
                   <div
-                    title="Authenticated via Google OAuth 2.0"
-                    className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-md p-0.5"
+                    title="Google Verified Session"
+                    className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full p-0.5 shadow-sm border border-slate-200"
                   >
-                    <svg viewBox="0 0 24 24" className="w-3 h-3">
+                    <svg viewBox="0 0 24 24" className="w-full h-full">
                       <path
                         fill="#4285F4"
                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"

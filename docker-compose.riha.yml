@@ -629,6 +629,66 @@ services:
     networks:
       - riha-network
 
+  # =====================================================================
+  # STOCK AI 6: riha-stock-ai-portfolio-risk-service (Port 8094)
+  # =====================================================================
+  riha-stock-ai-portfolio-risk-service:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-portfolio-risk-service
+    build:
+      context: ./riha-stock-ai-portfolio-risk-service
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-portfolio-risk-service
+    restart: unless-stopped
+    ports:
+      - "8094:8094"
+    environment:
+      SERVER_PORT: 8094
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - riha-kafka
+    networks:
+      - riha-network
+
+  # =====================================================================
+  # STOCK AI 7: riha-stock-ai-backtest-engine (Port 8095)
+  # =====================================================================
+  riha-stock-ai-backtest-engine:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-backtest-engine
+    build:
+      context: ./riha-stock-ai-backtest-engine
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-backtest-engine
+    restart: unless-stopped
+    ports:
+      - "8095:8095"
+    environment:
+      SERVER_PORT: 8095
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - riha-kafka
+    networks:
+      - riha-network
+
+  # =====================================================================
+  # STOCK AI 8: riha-stock-ai-sentiment-news-service (Port 8096)
+  # =====================================================================
+  riha-stock-ai-sentiment-news-service:
+    image: docker.io/rimmidis/riha-platform:riha-stock-ai-sentiment-news-service
+    build:
+      context: ./riha-stock-ai-sentiment-news-service
+      dockerfile: Dockerfile
+    container_name: riha-stock-ai-sentiment-news-service
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    environment:
+      SERVER_PORT: 8096
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - riha-kafka
+    networks:
+      - riha-network
+
 networks:
   riha-network:
     name: riha-enterprise-network

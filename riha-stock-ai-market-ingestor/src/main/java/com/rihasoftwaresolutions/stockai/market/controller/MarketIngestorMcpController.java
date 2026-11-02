@@ -61,6 +61,9 @@ public class MarketIngestorMcpController {
             case "gettopmarketmovers" -> ResponseEntity.ok(
                     marketStreamService.fetchTopMarketMovers(String.valueOf(args.getOrDefault("window", "1D")))
             );
+            case "getmarketregimesnapshot" -> ResponseEntity.ok(mcpTools.getMarketRegimeSnapshot());
+            case "getorderflowmicrostructure" -> ResponseEntity.ok(mcpTools.getOrderFlowMicrostructure(ticker));
+            case "getinsidertransactions" -> ResponseEntity.ok(mcpTools.getInsiderTransactions(ticker));
             case "fetchtopmoversbywindow" -> {
                 String window = String.valueOf(args.getOrDefault("window", "1D"));
                 Double minRvol = args.get("minRelativeVolume") instanceof Number n ? n.doubleValue() : 2.5;
@@ -128,5 +131,23 @@ public class MarketIngestorMcpController {
     @Operation(summary = "Get live external market WebSocket/REST feed connection status")
     public ResponseEntity<Map<String, Object>> getFeedStatus() {
         return ResponseEntity.ok(marketStreamService.getFeedConnectionStatus());
+    }
+
+    @GetMapping("/market/regime")
+    @Operation(summary = "Get macroeconomic & market regime sensory snapshot (S&P 500, Nasdaq, VIX contango, 10Y yield, economic countdowns)")
+    public ResponseEntity<com.rihasoftwaresolutions.stockai.market.model.MarketRegimeSnapshot> getMarketRegime() {
+        return ResponseEntity.ok(mcpTools.getMarketRegimeSnapshot());
+    }
+
+    @GetMapping("/market/order-flow/{ticker}")
+    @Operation(summary = "Get order flow microstructure, cumulative volume delta (CVD), order book imbalance, spread percentiles, and ATR-14")
+    public ResponseEntity<com.rihasoftwaresolutions.stockai.market.model.OrderFlowMicrostructure> getOrderFlow(@PathVariable String ticker) {
+        return ResponseEntity.ok(mcpTools.getOrderFlowMicrostructure(ticker));
+    }
+
+    @GetMapping("/market/insider-transactions/{ticker}")
+    @Operation(summary = "Get SEC Form 4 insider trading filings, 90-day net dollar flow, and cluster transaction analysis")
+    public ResponseEntity<com.rihasoftwaresolutions.stockai.market.model.InsiderTransactionRecord> getInsiderTransactions(@PathVariable String ticker) {
+        return ResponseEntity.ok(mcpTools.getInsiderTransactions(ticker));
     }
 }
