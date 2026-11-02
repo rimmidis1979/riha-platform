@@ -14,3 +14,4 @@ public record RiskApprovalVerdict(
         Instant evaluatedAt
 ) {
 }
+

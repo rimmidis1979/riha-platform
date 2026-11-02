@@ -12,3 +12,4 @@ public class RihaStockAiSentimentNewsServiceApplication {
         SpringApplication.run(RihaStockAiSentimentNewsServiceApplication.class, args);
     }
 }
+

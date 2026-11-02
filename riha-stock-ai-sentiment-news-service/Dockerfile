@@ -12,3 +12,4 @@ USER appuser
 EXPOSE 8096
 ENV JAVA_OPTS="-Xms128m -Xmx384m -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
+

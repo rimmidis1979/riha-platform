@@ -19,3 +19,4 @@ public record BacktestTradeRecord(
         String exitReason // "TAKE_PROFIT_LIMIT", "TRAILING_STOP_LOCK", "STALE_MOMENTUM_TIME_EXIT"
 ) {
 }
+

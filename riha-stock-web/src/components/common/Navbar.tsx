@@ -115,16 +115,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                     className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-500/30"
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs">
-                    {user?.name?.slice(0, 2).toUpperCase() || 'TR'}
+                  <div className="w-9 h-9 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-sm text-blue-700">
+                    {user?.name?.charAt(0) || 'U'}
                   </div>
                 )}
+
                 {isGoogleUser && (
                   <div
-                    title="Google Verified Session"
-                    className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full p-0.5 shadow-sm border border-slate-200"
+                    title="Authenticated via Google OAuth 2.0"
+                    className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-md p-0.5"
                   >
-                    <svg viewBox="0 0 24 24" className="w-full h-full">
+                    <svg viewBox="0 0 24 24" className="w-3 h-3">
                       <path
                         fill="#4285F4"
                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"

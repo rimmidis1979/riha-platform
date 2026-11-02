@@ -51,3 +51,4 @@ public class SentimentNewsController {
         return ResponseEntity.ok(sentimentService.scoreNewsHeadline(headline, ticker));
     }
 }
+

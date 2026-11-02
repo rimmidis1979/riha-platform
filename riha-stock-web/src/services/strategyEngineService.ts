@@ -10,6 +10,7 @@ const isBrowser = typeof window !== 'undefined';
 const STRATEGY_SERVICE_URL = import.meta.env.VITE_RIHA_STOCK_STRATEGY_API_URL || (isBrowser ? '' : 'http://localhost:8093');
 const MARKET_INGESTOR_URL = import.meta.env.VITE_RIHA_MARKET_INGESTOR_API_URL || (isBrowser ? '' : 'http://localhost:8091');
 
+// Deterministic seed generation based on ticker string for reproducible, realistic stock-specific metrics
 function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -33,10 +34,14 @@ const KNOWN_COMPANIES: Record<string, { name: string; sector: string; pe: number
 };
 
 export class StrategyEngineService {
+  /**
+   * Runs the full multi-strategy diagnostic evaluation across all categories for any given ticker.
+   */
   public static async evaluateAllStrategies(tickerRaw: string): Promise<ComprehensiveStrategyReport> {
     const ticker = (tickerRaw || 'NVDA').trim().toUpperCase();
     const seed = hashString(ticker);
 
+    // 1. Fetch live metrics from market ingestor or strategy service if reachable
     let liveTech: any = null;
     let liveSec: any = null;
     let liveCritic: any = null;
@@ -68,6 +73,7 @@ export class StrategyEngineService {
       // Fallback
     }
 
+    // 2. Synthesize robust, realistic metrics (merging live feeds with deterministic company profiles)
     const known = KNOWN_COMPANIES[ticker] || {
       name: `${ticker} Holdings Corp.`,
       sector: 'Technology & Growth Equities',
@@ -93,6 +99,7 @@ export class StrategyEngineService {
     const shortFloat = Number((3.5 + ((seed % 180) / 10)).toFixed(1));
     const nlpSentiment = Number((0.45 + ((seed % 50) / 100)).toFixed(2));
 
+    // 3. Evaluate Category 1: Technical & Momentum (Weight: 25%)
     const technicalStrategies: StrategyEvaluationItem[] = [
       {
         id: 'TECH-VWAP-01',
@@ -178,6 +185,7 @@ export class StrategyEngineService {
       },
     ];
 
+    // 4. Evaluate Category 2: Fundamental & Financial Health (Weight: 20%)
     const fundamentalStrategies: StrategyEvaluationItem[] = [
       {
         id: 'FUND-PEG-01',
@@ -245,6 +253,7 @@ export class StrategyEngineService {
       },
     ];
 
+    // 5. Evaluate Category 3: SEC Filings, Regulatory & Dilution Overhang (Weight: 15%)
     const hasS3Overhang = liveSec?.hasAtmOffering ?? (seed % 10 === 0);
     const has8KPartner = liveSec?.catalystSummary?.includes('8-K') ?? (seed % 3 !== 0);
     const insiderAccumulation = seed % 4 !== 0;
@@ -300,6 +309,7 @@ export class StrategyEngineService {
       },
     ];
 
+    // 6. Evaluate Category 4: Market Structure & Order Flow (Weight: 15%)
     const marketStructureStrategies: StrategyEvaluationItem[] = [
       {
         id: 'MKT-L2-01',
@@ -351,6 +361,7 @@ export class StrategyEngineService {
       },
     ];
 
+    // 7. Evaluate Category 5: Sentiment, News & Macro (Weight: 10%)
     const sentimentStrategies: StrategyEvaluationItem[] = [
       {
         id: 'SENT-NLP-01',
@@ -386,6 +397,7 @@ export class StrategyEngineService {
       },
     ];
 
+    // 8. Evaluate Category 6: Critic Cryptographic & Risk Guardrails (Weight: 15%)
     const criticPassed = liveCritic?.deterministicPassed ?? true;
     const criticScoreVal = liveCritic?.semanticScore ? Math.round(liveCritic.semanticScore * 100) : 94;
 
@@ -438,6 +450,7 @@ export class StrategyEngineService {
       },
     ];
 
+    // Build Category Summaries
     const categories: StrategyCategorySummary[] = [
       this.buildCategorySummary(
         'technical',
@@ -483,6 +496,7 @@ export class StrategyEngineService {
       ),
     ];
 
+    // Compute Overall Score = Σ (Category Score * Weight %)
     const totalWeightedScore = categories.reduce(
       (sum, cat) => sum + (cat.score * cat.weightPercent) / 100,
       0
@@ -527,6 +541,7 @@ export class StrategyEngineService {
     const applicableCount = strategies.filter((s) => s.isApplicable).length;
     const totalCount = strategies.length;
 
+    // Category Score is the average of applicable strategies scores (or 0 if none)
     const applicableScores = strategies.filter((s) => s.isApplicable).map((s) => s.score);
     const avgScore = applicableScores.length > 0
       ? Math.round(applicableScores.reduce((a, b) => a + b, 0) / applicableScores.length)

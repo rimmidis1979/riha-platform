@@ -12,3 +12,4 @@ public class RihaStockAiPortfolioRiskServiceApplication {
         SpringApplication.run(RihaStockAiPortfolioRiskServiceApplication.class, args);
     }
 }
+

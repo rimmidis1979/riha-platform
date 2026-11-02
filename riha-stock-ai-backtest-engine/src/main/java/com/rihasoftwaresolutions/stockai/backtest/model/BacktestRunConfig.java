@@ -15,3 +15,4 @@ public record BacktestRunConfig(
         String slippageModel // "SQUARE_ROOT_IMPACT", "FIXED_BPS", "ZERO_SLIPPAGE_BENCHMARK"
 ) {
 }
+

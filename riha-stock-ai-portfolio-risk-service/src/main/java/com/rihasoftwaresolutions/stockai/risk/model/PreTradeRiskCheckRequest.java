@@ -13,3 +13,4 @@ public record PreTradeRiskCheckRequest(
         BigDecimal stopLossPrice
 ) {
 }
+

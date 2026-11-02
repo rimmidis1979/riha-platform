@@ -388,3 +388,4 @@ Create `CatalystUrgencyClassifier`:
 ##### 6. Verification & Testing
 * Unit test `FinBertSentimentScoringEngineTest`: Runs test headlines ("Company beats EPS estimates by $0.40" vs "Company announces $50M dilutive stock offering") and asserts expected positive/negative polarity scores.
 * Integration test for `NewsWireIngestionService` verifying headline deduplication logic.
+

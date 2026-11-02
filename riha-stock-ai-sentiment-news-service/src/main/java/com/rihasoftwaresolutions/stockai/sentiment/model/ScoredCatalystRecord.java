@@ -16,3 +16,4 @@ public record ScoredCatalystRecord(
         Instant publishedAt
 ) {
 }
+

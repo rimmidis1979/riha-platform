@@ -14,3 +14,4 @@ public record AggregatedSentimentSnapshot(
         Instant lastUpdated
 ) {
 }
+

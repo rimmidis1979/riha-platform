@@ -12,3 +12,4 @@ public class RihaStockAiBacktestEngineApplication {
         SpringApplication.run(RihaStockAiBacktestEngineApplication.class, args);
     }
 }
+

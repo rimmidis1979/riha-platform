@@ -17,3 +17,4 @@ public record PortfolioRiskSnapshot(
         Instant timestamp
 ) {
 }
+

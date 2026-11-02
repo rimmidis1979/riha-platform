@@ -49,3 +49,4 @@ public class PortfolioRiskController {
         return ResponseEntity.ok(riskService.triggerEmergencyKillSwitch(reason));
     }
 }
+
