@@ -95,3 +95,4 @@ Builds the Docker container image, pushes it to Docker Hub (`rimmidis/riha-platf
 # Example: deploy latest image with 1 task
 ./deploy.sh latest 1
 ```
+
