@@ -13,6 +13,8 @@ This specification provides modular, production-ready code generation prompts fo
    - [Prompt 4: Portfolio Risk Service (Port 8094) — Covariance, VaR, and Circuit Breakers](#prompt-4-portfolio-risk-service-port-8094--covariance-var-and-circuit-breakers)
    - [Prompt 5: Backtest Engine (Port 8095) — Tick Replay and Slippage Simulation](#prompt-5-backtest-engine-port-8095--tick-replay-and-slippage-simulation)
    - [Prompt 6: Sentiment & News Service (Port 8096) — News Ingestion and FinBERT Scoring](#prompt-6-sentiment-news-service-port-8096--news-ingestion-and-finbert-scoring)
+3. [Master Decision Orchestrator](#3-master-decision-orchestrator)
+   - [Prompt 7: Decision Orchestrator (Port 8083) — Distributed Multi-Service Decision Pipeline](#prompt-7-decision-orchestrator-port-8083--distributed-multi-service-decision-pipeline)
 
 ---
 
@@ -388,4 +390,193 @@ Create `CatalystUrgencyClassifier`:
 ##### 6. Verification & Testing
 * Unit test `FinBertSentimentScoringEngineTest`: Runs test headlines ("Company beats EPS estimates by $0.40" vs "Company announces $50M dilutive stock offering") and asserts expected positive/negative polarity scores.
 * Integration test for `NewsWireIngestionService` verifying headline deduplication logic.
+
+---
+
+## 3. Master Decision Orchestrator
+
+### Prompt 7: Decision Orchestrator (Port 8083) — Distributed Multi-Service Decision Pipeline
+
+#### SYSTEM CONTEXT & GOAL
+You are a Principal Distributed Systems & Financial AI Architect building the master orchestration engine for the RIHA Stock AI platform: `riha-orchestrator` (default port 8083). This service orchestrates the end-to-end strategic trade decision lifecycle across the entire microservices fleet:
+* `riha-stock-ai-market-ingestor` (Port 8091)
+* `riha-stock-ai-strategy-service` (Port 8093)
+* `riha-stock-ai-robinhood-mcp-server` (Port 8092)
+* `riha-stock-ai-portfolio-risk-service` (Port 8094)
+* `riha-stock-ai-sentiment-news-service` (Port 8096)
+* `riha-stock-ai-backtest-engine` (Port 8095)
+* Core Support: `riha-critic-engine` (8085), `riha-episodic-memory` (8086), `riha-version-control-hub` (8089), `riha-schema-validator` (8082).
+
+You must implement an asynchronous, stateful, resilient Agentic Decision Pipeline that enforces zero-token waste, strict short-circuiting on risk breaches, parallel sensory fan-out, adversarial debate, cryptographic execution gating, and real-time SSE progress streaming.
+
+#### CODEBASE LOCATION
+* Target Package: `com.rihasoftwaresolutions.stockai.orchestrator`
+* Java Version: 21
+* Spring Boot: 3.3+
+* Reactive / Virtual Threads: Java 21 Virtual Threads (`Executors.newVirtualThreadPerTaskExecutor()`) or Spring WebFlux / `CompletableFuture` orchestration.
+
+#### ORCHESTRATION PIPELINE SPECIFICATION (8-STAGE STATE MACHINE)
+
+```
+[Trigger: Scan / Webhook / REST]
+│
+▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 1: Fast-Fail Macro & Circuit Breaker Pre-Check   │ (Ports 8091, 8094)
+│ • Is Drawdown <= -3.0%? (Circuit Breaker Tripped)      │ ──► [HALT: ZERO TOKENS SPENT]
+│ • Is Macro Regime = HIGH_VOLATILITY_PANIC?             │
+│ • Is Tier-1 Macro Event in < 30 Minutes?               │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Passed Pre-Check
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 2: Parallel Multi-Source Sensory Fan-Out         │ (Virtual Threads / CompletableFuture)
+│ ├── Thread A: Market Ingestor (Technicals, L2, CVD)    │ (Port 8091)
+│ ├── Thread B: SEC EDGAR Scraper (8-K, S-3, Form 4)     │ (Port 8091)
+│ ├── Thread C: Sentiment & News (FinBERT, Mentions)     │ (Port 8096)
+│ └── Thread D: Episodic Memory (pgvector Trade Matches) │ (Port 8086)
+└──────────────────────────┬─────────────────────────────┘
+                           │ Aggregated Context Payload
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 3: Versioned Prompt & Schema Ingestion           │ (Ports 8089, 8082)
+│ • Pull active Playbook & Prompts from VCHub            │
+│ • Compile unified Multi-Pillar Analysis Context        │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 4: Adversarial Multi-Agent Strategy Consensus    │ (Port 8093)
+│ • Bullish Momentum Agent vs Bearish Red-Team Agent     │
+│ • Arbiter Synthesis -> Conviction, Entry, Stop, Target │
+│ • ATR-14 & Fractional Kelly Preliminary Sizing         │
+└──────────────────────────┬─────────────────────────────┘
+                           │ If Verdict == BUY
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 5: Portfolio-Level Risk & Covariance Gate        │ (Port 8094)
+│ • Cross-Holding Correlation Check (rho <= 0.75)        │
+│ • Sector Concentration Limit (<= 25%)                  │
+│ • Post-Trade Portfolio VaR Check (<= 3.5%)             │
+│ • Sizing Adjustment (Scales down shares if needed)     │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Approved by Risk Service
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 6: Critic SpEL Guardrails & HMAC Signature       │ (Port 8085)
+│ • 6 Deterministic SpEL Rules (Notional, Dilution, R:R) │
+│ • Mint Cryptographic HMAC-SHA256 Token                 │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Cryptographic Signature Token
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 7: Pre-Flight Slippage Check & Execution Dispatch│ (Ports 8091, 8092)
+│ • Atomic Price Drift Check (< 35 bps)                  │
+│ • Dispatch Synthetic Bracket Order via Robinhood MCP   │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Fill Receipt
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 8: Post-Execution Lifecycle & Audit Hand-Off     │
+│ • Persist Decision & Audit Trail to PostgreSQL         │ (Port 8093)
+│ • Register active position with Kafka Lifecycle Worker │ (Port 8093)
+│ • Push Shadow Paper Trade to Backtest Engine           │ (Port 8095)
+│ • Stream Complete Decision Event via SSE to React UIs  │ (Ports 5174, 5175)
+└────────────────────────────────────────────────────────┘
+```
+
+#### COMPONENTS TO IMPLEMENT
+
+##### 1. Orchestration State Machine (`com.rihasoftwaresolutions.stockai.orchestrator.pipeline`)
+Create `StockDecisionWorkflowOrchestrator`:
+* Method: `public CompletableFuture<OrchestrationDecisionResult> executeDecisionPipeline(String ticker, ExecutionMode mode);`
+  * `ExecutionMode`: `AUTONOMOUS_LIVE`, `RECOMMENDATION_ONLY`, `SHADOW_PAPER`.
+* Maintains structured state context: `PipelineExecutionContext`:
+  * `String pipelineExecutionId` (UUID)
+  * `String ticker`, `Instant startTime`
+  * `MarketRegimeSnapshot marketRegime`
+  * `RiskApprovalVerdict riskVerdict`
+  * `MultiPillarAnalysisSnapshot aggregatedContext`
+  * `StrategyConsensusDecision strategyDecision`
+  * `CriticReviewResult criticVerdict`
+  * `OrderExecutionReceipt executionReceipt`
+  * `List<PipelineStageLog> stageLogs`
+
+##### 2. Short-Circuit Stage Interceptors
+Implement fast-fail evaluation before expensive LLM inference:
+* **Stage 1 Fast-Fail**:
+  ```java
+  // Query Risk Service & Market Ingestor in parallel
+  var circuitBreaker = riskServiceClient.getCircuitBreakerStatus();
+  if (circuitBreaker.isTripped()) {
+      return shortCircuit(PipelineStatus.HALTED_CIRCUIT_BREAKER, "Daily drawdown limit exceeded: " + circuitBreaker.getDrawdownPct());
+  }
+  var macro = marketIngestorClient.getMarketRegimeSnapshot();
+  if (macro.macroRegime() == MacroRegime.HIGH_VOLATILITY_PANIC && mode == ExecutionMode.AUTONOMOUS_LIVE) {
+      return shortCircuit(PipelineStatus.HALTED_MACRO_PANIC, "Autonomous trading locked during High Volatility Panic");
+  }
+  if (macro.hasImminentTier1Event(Duration.ofMinutes(30))) {
+      return shortCircuit(PipelineStatus.HALTED_MACRO_EVENT, "Within 30m window of Tier-1 Macro Event: " + macro.getImminentEventName());
+  }
+  ```
+
+##### 3. Concurrent Sensory Aggregator (`com.rihasoftwaresolutions.stockai.orchestrator.aggregator`)
+Create `SensoryFanOutAggregator`:
+* Uses Java 21 Virtual Threads (`StructuredTaskScope.ShutdownOnFailure` or `CompletableFuture.allOf`):
+  * **Task 1**: `marketIngestorClient.getUnderneathTechnicalSnapshot(ticker)` & `getOrderFlowMicrostructure(ticker)`
+  * **Task 2**: `marketIngestorClient.getLiveSecFilingsAndCatalysts(ticker)` & `getInsiderTransactions(ticker)`
+  * **Task 3**: `sentimentServiceClient.getTickerSentimentScore(ticker)` & `getBreakingCatalysts(ticker)`
+  * **Task 4**: `episodicMemoryClient.findSimilarHistoricalTrades(tickerEmbedding, 5)`
+* **Timeout constraint**: 2,500ms max. If Sentiment or Episodic Memory times out, fall back gracefully with a neutral default score rather than aborting the pipeline.
+
+##### 4. Dynamic Risk & Sizing Interceptor (`com.rihasoftwaresolutions.stockai.orchestrator.interceptor`)
+After Strategy Service generates preliminary conviction and ATR sizing:
+* Call `portfolioRiskServiceClient.evaluatePreTradeRisk(ticker, sector, proposedShares, limitPrice, stopLossPrice)`:
+  * If `RiskApprovalVerdict.approved() == false`, log reason (e.g. "Sector concentration exceeds 25%"), update decision to `HOLD`, and bypass Critic/Execution.
+  * If `RiskApprovalVerdict.adjustedMaxShares() < proposedShares`, automatically scale down order sizing to comply with risk bounds.
+
+##### 5. Atomic Pre-Flight & Critic Signing Hand-Off
+* **Step 1**: Submit final decision payload to `riha-critic-engine` (`POST /api/v1/critic/evaluate`).
+  * If rejected, abort and persist SpEL violation details.
+  * If approved, extract cryptographic `criticHmacSignature`.
+* **Step 2**: Atomic Slippage Guard:
+  * Fetch fresh tick from `riha-stock-ai-market-ingestor`.
+  * If `|currentAsk - limitPrice| / limitPrice > 0.0035` (35 bps), cancel dispatch, release risk lock, and log `SLIPPAGE_DRIFT_EXCEEDED`.
+* **Step 3**: Dispatch to `riha-stock-ai-robinhood-mcp-server`:
+  * Call `submitLimitOrder` or `place_synthetic_bracket_order` passing `criticHmacSignature` in HTTP header `X-Critic-Signature`.
+
+##### 6. Real-Time SSE Stream & Audit Publisher (`com.rihasoftwaresolutions.stockai.orchestrator.sse`)
+Create `PipelineEventBroadcaster`:
+* Streams real-time Server-Sent Events to React client dashboards:
+  * `STAGE_STARTED` (Stage name, timestamp)
+  * `STAGE_COMPLETED` (Metrics, stage latency in ms)
+  * `DECISION_FINALIZED` (Conviction score, Bull/Bear thesis summary)
+  * `ORDER_EXECUTED` (Robinhood Order ID, fill price, bracket parameters)
+* Publishes end-of-pipeline payload to Kafka topic: `riha.stockai.decisions.orchestrated`.
+
+##### 7. REST Controller & API Endpoints (`com.rihasoftwaresolutions.stockai.orchestrator.controller`)
+* `POST /api/v1/orchestrator/decide/{ticker}`:
+  * Query Param: `mode=AUTONOMOUS_LIVE|RECOMMENDATION_ONLY|SHADOW_PAPER`
+  * Returns immediate `pipelineExecutionId` with HTTP `202 Accepted`.
+* `GET /api/v1/orchestrator/stream/{executionId}`:
+  * SSE stream of live pipeline stages and decision tree transitions.
+* `POST /api/v1/orchestrator/batch-scan`:
+  * Body: `List<String> tickers`, `ExecutionMode mode`
+  * Runs parallel orchestration using a bounded concurrency pool (max 5 simultaneous tickers).
+
+##### 8. Verification & Resiliency Tests
+* `OrchestratorShortCircuitTest`: Verifies that macro panic or drawdown circuit breaker immediately halts execution without invoking LLM strategy services.
+* `SensoryFanOutResiliencyTest`: Simulates a slow/downed sentiment service and verifies the pipeline gracefully falls back within the 2,500ms timeout.
+* `EndToEndAutonomousPipelineTest`: Mocks all downstream microservice clients and asserts that an end-to-end execution correctly captures the HMAC signature and calls Robinhood MCP.
+
+---
+
+### Key Architectural Mechanisms in Prompt 7
+
+* **Fast-Fail Gate (Zero Token Waste)**: Before allocating LLM resources, the orchestrator queries `riha-stock-ai-portfolio-risk-service` and `riha-stock-ai-market-ingestor`. If the account has hit its daily loss limit ($-3.0\%$), market volatility is extreme (VIX $\ge 25$), or a Tier-1 economic event (CPI, FOMC) is within 30 minutes, it aborts immediately.
+* **Concurrent Sensory Fan-Out**: Uses Java 21 Virtual Threads (`StructuredTaskScope` or `CompletableFuture.allOf`) to query technical indicators, SEC dilution filings, Form 4 insider transactions, FinBERT sentiment, and historical vector memories concurrently within a strict 2,500ms timeout budget with graceful degradation.
+* **Dynamic Risk & Sizing Interceptor**: If the Strategy Service recommends a BUY, the orchestrator queries `riha-stock-ai-portfolio-risk-service` to inspect prospective portfolio correlation ($\rho \le 0.75$), sector caps ($\le 25\%$), and 1-day Value-at-Risk ($\le 3.5\%$), automatically resizing the share allocation down if risk ceilings are approached.
+* **Two-Stage Execution Handshake**: Passes the candidate payload to `riha-critic-engine` to generate an HMAC-SHA256 signature, performs an atomic pre-flight price check against real-time quotes to confirm slippage remains under 35 bps, and only then submits the signed bracket order to `riha-stock-ai-robinhood-mcp-server`.
+* **Stateful Audit & UI Event Streaming**: Streams stage-by-stage lifecycle events over Server-Sent Events (SSE) to the frontend React dashboards (:5174 and :5175) while dispatching parallel audit records to PostgreSQL and paper-trading logs to `riha-stock-ai-backtest-engine`.
+
 

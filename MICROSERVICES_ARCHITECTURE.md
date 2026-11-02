@@ -553,6 +553,77 @@ To scale the platform into an institutional-grade, multi-agent algorithmic syste
 | **`riha-stock-ai-portfolio-risk-service`** | `8094` | Risk Guardian | REST, Kafka $\to$ Redis, Postgres | Covariance matrix ($\rho > 0.75$ warnings), 1D 95% VaR & CVaR, sector concentration caps ($\le 25\%$), drawdown circuit breakers (-2% / -3%) |
 | **`riha-stock-ai-backtest-engine`** | `8095` | Simulation & Testing | Parquet / S3, Kafka $\to$ Postgres, Web UI | Historical tick replay, realistic square-root slippage modeling, paper shadow mode, institutional tearsheets (Sharpe, Sortino, Calmar) |
 | **`riha-stock-ai-sentiment-news-service`** | `8096` | Unstructured NLP | RSS, REST Wires $\to$ Redis, Kafka | News wire deduplication (SHA-256), sub-20ms FinBERT sentiment inference, breaking catalyst urgency classification |
+| **`riha-orchestrator`** | `8083` | Master Orchestration | REST, SSE, Kafka $\to$ Fleet | Asynchronous 8-stage state machine: fast-fail circuit breakers (zero token waste), Virtual Thread sensory fan-out, adversarial debate, dynamic risk & VaR gate, HMAC signing, atomic slippage checks (<35 bps), Robinhood MCP dispatch, live SSE streaming |
+
+### 7.1 Distributed 8-Stage Master Decision Pipeline
+
+```
+[Trigger: Scan / Webhook / REST]
+│
+▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 1: Fast-Fail Macro & Circuit Breaker Pre-Check   │ (Ports 8091, 8094)
+│ • Is Drawdown <= -3.0%? (Circuit Breaker Tripped)      │ ──► [HALT: ZERO TOKENS SPENT]
+│ • Is Macro Regime = HIGH_VOLATILITY_PANIC?             │
+│ • Is Tier-1 Macro Event in < 30 Minutes?               │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Passed Pre-Check
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 2: Parallel Multi-Source Sensory Fan-Out         │ (Virtual Threads / CompletableFuture)
+│ ├── Thread A: Market Ingestor (Technicals, L2, CVD)    │ (Port 8091)
+│ ├── Thread B: SEC EDGAR Scraper (8-K, S-3, Form 4)     │ (Port 8091)
+│ ├── Thread C: Sentiment & News (FinBERT, Mentions)     │ (Port 8096)
+│ └── Thread D: Episodic Memory (pgvector Trade Matches) │ (Port 8086)
+└──────────────────────────┬─────────────────────────────┘
+                           │ Aggregated Context Payload
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 3: Versioned Prompt & Schema Ingestion           │ (Ports 8089, 8082)
+│ • Pull active Playbook & Prompts from VCHub            │
+│ • Compile unified Multi-Pillar Analysis Context        │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 4: Adversarial Multi-Agent Strategy Consensus    │ (Port 8093)
+│ • Bullish Momentum Agent vs Bearish Red-Team Agent     │
+│ • Arbiter Synthesis -> Conviction, Entry, Stop, Target │
+│ • ATR-14 & Fractional Kelly Preliminary Sizing         │
+└──────────────────────────┬─────────────────────────────┘
+                           │ If Verdict == BUY
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 5: Portfolio-Level Risk & Covariance Gate        │ (Port 8094)
+│ • Cross-Holding Correlation Check (rho <= 0.75)        │
+│ • Sector Concentration Limit (<= 25%)                  │
+│ • Post-Trade Portfolio VaR Check (<= 3.5%)             │
+│ • Sizing Adjustment (Scales down shares if needed)     │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Approved by Risk Service
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 6: Critic SpEL Guardrails & HMAC Signature       │ (Port 8085)
+│ • 6 Deterministic SpEL Rules (Notional, Dilution, R:R) │
+│ • Mint Cryptographic HMAC-SHA256 Token                 │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Cryptographic Signature Token
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 7: Pre-Flight Slippage Check & Execution Dispatch│ (Ports 8091, 8092)
+│ • Atomic Price Drift Check (< 35 bps)                  │
+│ • Dispatch Synthetic Bracket Order via Robinhood MCP   │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Fill Receipt
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ STAGE 8: Post-Execution Lifecycle & Audit Hand-Off     │
+│ • Persist Decision & Audit Trail to PostgreSQL         │ (Port 8093)
+│ • Register active position with Kafka Lifecycle Worker │ (Port 8093)
+│ • Push Shadow Paper Trade to Backtest Engine           │ (Port 8095)
+│ • Stream Complete Decision Event via SSE to React UIs  │ (Ports 5174, 5175)
+└────────────────────────────────────────────────────────┘
+```
 
 ---
 
