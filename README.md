@@ -42,6 +42,7 @@ An enterprise-grade autonomous AI trading and decision system architected on top
 | **Robinhood Brokerage MCP** | [`riha-stock-ai-robinhood-mcp-server/`](file:///Users/ram-ai/Documents/development/code/stock/stock-ai/riha-stock-ai-robinhood-mcp-server/README.md) | `:8092` | `com.rihasoftwaresolutions.stockai.robinhoodmcp` | Account balances, position tracking, order execution |
 | **Strategy Service** | [`riha-stock-ai-strategy-service/`](file:///Users/ram-ai/Documents/development/code/stock/stock-ai/riha-stock-ai-strategy-service/README.md) | `:8093` | `com.rihasoftwaresolutions.stockai.strategy` | Multi-stock DAG pipeline, scanner loop, command REST/SSE API |
 | **Executive Web UI** | [`riha-stock-ai-web/`](file:///Users/ram-ai/Documents/development/code/stock/stock-ai/riha-stock-ai-web/README.md) | `:5174` | React 18 + Vite | Executive Command Workspace & Decision Monitor |
+| **Personalized Stock Web** | [`riha-stock-web/`](file:///Users/ram-ai/Documents/development/code/stock/stock-ai/riha-stock-web/README.md) | `:5175` | React 18 + Vite | Personalized Real-Time Stock Trading, Google Auth, Account Portfolio, Buy/Sell Ledger, Multi-Timeframe Performance, Trending Stock Scanner & Watchlist |
 
 ---
 
