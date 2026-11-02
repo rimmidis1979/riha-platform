@@ -12,7 +12,7 @@ export const TradeModal: React.FC = () => {
 
   const currentHolding = holdings.find((h) => h.symbol === selectedStockForTrade.symbol);
   const sharesOwned = currentHolding?.shares || 0;
-  const cashAvailable = user?.cashBalance || 100000.00;
+  const cashAvailable = user?.cashBalance || 0.0;
 
   const [side, setSide] = useState<OrderSide>(selectedStockForTrade.defaultSide || 'BUY');
   const [orderType, setOrderType] = useState<OrderType>('MARKET');

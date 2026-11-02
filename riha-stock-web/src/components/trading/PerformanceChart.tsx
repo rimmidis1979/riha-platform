@@ -7,7 +7,17 @@ export const PerformanceChart: React.FC = () => {
   const { timeframe, setTimeframe, performanceData } = useTrading();
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
 
-  if (performanceData.length === 0) return null;
+  if (performanceData.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm text-center">
+        <BarChart2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+        <h4 className="text-sm font-bold text-slate-800">No Performance Ledger History</h4>
+        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+          Execute live trades to track performance curves and S&amp;P 500 benchmark comparisons.
+        </p>
+      </div>
+    );
+  }
 
   // Compute SVG dimensions and scale
   const width = 800;

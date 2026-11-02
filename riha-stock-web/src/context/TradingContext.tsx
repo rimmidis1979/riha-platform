@@ -233,9 +233,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Portfolio calculations
   const totalEquity = holdings.reduce((sum, h) => sum + h.equity, 0);
-  const cashBalance = user ? user.cashBalance : 100000.00;
+  const cashBalance = user ? user.cashBalance : 0.0;
   const totalPortfolioValue = totalEquity + cashBalance;
-  const buyingPower = cashBalance * 4;
+  const buyingPower = user ? user.buyingPower : 0.0;
 
   const todayGain = holdings.reduce((sum, h) => sum + h.dayGain, 0);
   const todayGainPercent = totalPortfolioValue > 0 ? (todayGain / totalPortfolioValue) * 100 : 0;
@@ -254,10 +254,13 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     buyingPower,
   };
 
-  // Performance Curve Generator
+  // Performance Curve Generator - zero curve when account is new with zero equity
   const generateCurve = (equity: number, tf: Timeframe): PerformanceDataPoint[] => {
+    if (equity <= 0 && holdings.length === 0) {
+      return [];
+    }
     const count = tf === '1D' ? 24 : tf === '1W' ? 7 : tf === '1M' ? 30 : tf === '1Y' ? 12 : 36;
-    const baseVal = Math.max(1000, equity > 0 ? equity : 100000);
+    const baseVal = equity;
     const drift = tf === '1D' ? 0.006 : tf === '1W' ? 0.018 : tf === '1M' ? 0.045 : 0.16;
     const startVal = baseVal * (1 - drift);
     const now = new Date();
@@ -266,8 +269,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     for (let i = 0; i < count; i++) {
       const frac = i / (count - 1);
       const date = new Date(now.getTime() - (count - 1 - i) * (tf === '1D' ? 3600000 : 86400000 * (tf === '1Y' ? 30 : 1)));
-      const wave = Math.sin(frac * Math.PI * 2) * (baseVal * 0.015);
-      const val = Number((startVal + (baseVal - startVal) * frac + wave).toFixed(2));
+      const val = Number((startVal + (baseVal - startVal) * frac).toFixed(2));
       const spyVal = Number((val * (0.95 + frac * 0.03)).toFixed(2));
       const label = tf === '1D' ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
       pts.push({

@@ -44,20 +44,24 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending }) =
             {user?.name || 'Trader'}'s Account
           </h1>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            Account: <strong className="text-slate-800">{user?.accountNumber || 'RH-001'}</strong> • Margin: 2.0x • Settlement: T+0 Real-Time
+            Account: <strong className="text-slate-800">{user?.accountNumber || 'RH-001'}</strong> • Settlement: T+0 Real-Time
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              const stockToBuy = trendingStocks[0] || { symbol: 'NVDA', companyName: 'NVIDIA Corporation', price: 139.80 };
-              openTradeModal({
-                symbol: stockToBuy.symbol,
-                companyName: stockToBuy.companyName,
-                currentPrice: stockToBuy.price,
-                defaultSide: 'BUY',
-              });
+              if (trendingStocks.length > 0) {
+                const stockToBuy = trendingStocks[0];
+                openTradeModal({
+                  symbol: stockToBuy.symbol,
+                  companyName: stockToBuy.companyName,
+                  currentPrice: stockToBuy.price,
+                  defaultSide: 'BUY',
+                });
+              } else {
+                onExploreTrending();
+              }
             }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md shadow-blue-500/20 transition-all"
           >

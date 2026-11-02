@@ -86,7 +86,7 @@ export class StockApiClient {
       if (response.ok) {
         const data = await response.json();
         const totalEquity = Number(data.totalEquity || data.netAccountEquityUsd || 0);
-        const cashBalance = Number(data.settledCashUsd || data.cashBalance || 100000.00);
+        const cashBalance = Number(data.settledCashUsd || data.cashBalance || 0);
         const todayGain = Number(data.todayTotalProfitUsd || data.todayGain || 0);
         const todayGainPercent = Number(data.todayTotalProfitPct || data.todayGainPercent || 0);
         const allTimeGain = Number(data.overallCumulativeProfitUsd || data.allTimeGain || 0);
@@ -101,7 +101,7 @@ export class StockApiClient {
           allTimeGain,
           allTimeGainPercent,
           holdingsCount: Number(data.activePositionsCount || 0),
-          buyingPower: cashBalance * 4,
+          buyingPower: Number(data.liveBuyingPowerUsd || cashBalance * 4),
           todayReturn: todayGain,
           todayReturnPercent: todayGainPercent,
           totalReturn: allTimeGain,
@@ -114,14 +114,14 @@ export class StockApiClient {
 
     return {
       totalEquity: 0,
-      cashBalance: 100000.00,
-      totalPortfolioValue: 100000.00,
+      cashBalance: 0,
+      totalPortfolioValue: 0,
       todayGain: 0,
       todayGainPercent: 0,
       allTimeGain: 0,
       allTimeGainPercent: 0,
       holdingsCount: 0,
-      buyingPower: 400000.00,
+      buyingPower: 0,
       todayReturn: 0,
       todayReturnPercent: 0,
       totalReturn: 0,
@@ -150,7 +150,7 @@ export class StockApiClient {
 
             return {
               symbol: sym,
-              name: p.companyName || p.name || `${sym} Corp`,
+              name: p.companyName || p.name || `${sym}`,
               shares,
               avgCost,
               avgPrice: avgCost,
@@ -315,11 +315,7 @@ export class StockApiClient {
     } catch (e) {
       console.warn('RAG ingestion service search unavailable:', e);
     }
-    return [
-      { playbook: 'RVOL + VWAP Reclaim Breakout Playbook', winRate: 0.74, entry: 'Cross above VWAP with RVOL > 1.5' },
-      { playbook: 'SEC 8-K Catalyst Momentum Sprint', winRate: 0.81, entry: 'Material filing within 30 mins' },
-      { playbook: 'Opening Range High (ORH) Expansion', winRate: 0.69, entry: 'Break above 9:00-9:30 range high' },
-    ];
+    return [];
   }
 
   public static async runMomentumPromptAnalysis(
@@ -328,8 +324,8 @@ export class StockApiClient {
     userInstruction: string = 'Target 5% gain from entry, exit by market close, maximum 2% stop loss'
   ): Promise<MomentumPromptDecision> {
     const price = stock.price;
-    const vwap = stock.vwap ?? (price * 0.992);
-    const rvol = stock.relativeVolume ?? 2.1;
+    const vwap = stock.vwap ?? price;
+    const rvol = stock.relativeVolume ?? 1.0;
     const hasRecentFiling = !!stock.recentFiling && (stock.recentFiling.formType === '8-K' || stock.recentFiling.significance === 'HIGH');
 
     const filingCatalyst = hasRecentFiling
@@ -339,7 +335,7 @@ export class StockApiClient {
     const technicalsAligned = price > vwap && rvol >= 1.5;
 
     let action: 'BUY' | 'SELL' | 'HOLD' | 'NO_ACTION' = 'HOLD';
-    let confidence = 0.55;
+    let confidence = 0.5;
     let reasoning = '';
 
     if (technicalsAligned && hasRecentFiling) {
@@ -352,14 +348,14 @@ export class StockApiClient {
       reasoning = `Technical breakout: Price ($${price.toFixed(2)}) holds above VWAP ($${vwap.toFixed(2)}) with high volume expansion (${rvol.toFixed(1)}x 20-day avg).`;
     } else {
       action = 'HOLD';
-      confidence = 0.48;
-      reasoning = `Weak confirmation: Price ($${price.toFixed(2)}) does not satisfy simultaneous VWAP and opening range expansion criteria.`;
+      confidence = 0.45;
+      reasoning = `Hold signal: Price ($${price.toFixed(2)}) does not satisfy simultaneous VWAP and opening range expansion criteria.`;
     }
 
     const entryPrice = action === 'BUY' ? Number((price * 1.002).toFixed(2)) : price;
     const stopLoss = Number((entryPrice * 0.98).toFixed(2));
     const targetPrice = Number((entryPrice * 1.05).toFixed(2));
-    const primaryPlaybook = ragSnippets[0]?.playbook || 'RVOL + VWAP Reclaim Breakout Playbook';
+    const primaryPlaybook = ragSnippets.length > 0 ? (ragSnippets[0]?.playbook || ragSnippets[0]?.title || 'RAG Ingested Momentum Playbook') : 'RAG Ingested Momentum Playbook';
 
     return {
       action,
@@ -369,7 +365,7 @@ export class StockApiClient {
       stop_loss: stopLoss,
       target_price: targetPrice,
       order_type: 'LIMIT',
-      quantity: Math.max(1, Math.floor(5000 / entryPrice)),
+      quantity: Math.max(1, Math.floor(1000 / (entryPrice || 1))),
       catalyst: filingCatalyst,
       reasoning,
       evaluatedAt: new Date().toISOString(),
@@ -382,8 +378,8 @@ export class StockApiClient {
     const price = Number(item.lastPrice || item.currentPrice || item.price || 0);
     const dayChangePct = Number(item.dayChangePct || item.changePercent || 0);
     const change = Number(item.dayChange || (price * dayChangePct / 100) || 0);
-    const rvol = Number(item.relativeVolume || item.rvol || 1.8);
-    const vwap = Number(item.vwap || (price * 0.994));
+    const rvol = Number(item.relativeVolume || item.rvol || 1.0);
+    const vwap = item.vwap ? Number(item.vwap) : undefined;
 
     let aiPred: 'STRONG_BUY' | 'BUY' | 'HOLD' | 'SPECULATIVE_BUY' = 'BUY';
     if (dayChangePct > 7.0 && rvol > 2.0) aiPred = 'STRONG_BUY';
@@ -392,53 +388,39 @@ export class StockApiClient {
 
     return {
       symbol,
-      companyName: item.companyName || `${symbol} Corp`,
+      companyName: item.companyName || `${symbol}`,
       price,
       change,
       changePercent: dayChangePct,
-      volume: item.volumeFormatted || `${(Number(item.volume || 12500000) / 1000000).toFixed(1)}M`,
-      marketCap: item.marketCapFormatted || `$${(Number(item.marketCap || 85000000000) / 1000000000).toFixed(1)}B`,
-      sector: item.sector || 'Technology',
+      volume: item.volumeFormatted || (item.volume ? Number(item.volume).toLocaleString() : 'N/A'),
+      marketCap: item.marketCapFormatted || (item.marketCap ? '$' + Number(item.marketCap).toLocaleString() : 'N/A'),
+      sector: item.sector || 'Equities',
       momentumScore: Math.min(99, Math.max(10, Math.round(50 + dayChangePct * 3 + (rvol - 1) * 10))),
       aiPrediction: aiPred,
-      aiConfidence: Math.min(96, Math.max(60, Math.round(75 + (rvol > 2 ? 15 : 5)))),
-      socialSentimentScore: Math.min(98, Math.max(40, Math.round(65 + dayChangePct * 2))),
-      socialMentions24h: Math.round(Number(item.socialMentions24h || 1200 + Math.random() * 8000)),
+      aiConfidence: Math.min(96, Math.max(60, Math.round(70 + (rvol > 2 ? 15 : 5)))),
+      socialSentimentScore: Math.min(98, Math.max(40, Math.round(60 + dayChangePct * 2))),
+      socialMentions24h: item.socialMentions24h ? Number(item.socialMentions24h) : 0,
       vwap,
       relativeVolume: rvol,
-      shortBorrowFeePct: Number(item.shortBorrowFeePct || 1.5),
+      shortBorrowFeePct: item.shortBorrowFeePct ? Number(item.shortBorrowFeePct) : undefined,
       recentNews: item.recentNews ? {
-        id: item.recentNews.id || `news-${symbol}`,
-        headline: item.recentNews.headline || `${symbol} Momentum Expansion on Above-Average Volume`,
-        source: item.recentNews.source || 'Bloomberg',
-        publishedAt: item.recentNews.publishedAt || '15m ago',
-        sentiment: dayChangePct >= 0 ? 'BULLISH' : 'BEARISH',
-        impactScore: 82,
-        summary: item.recentNews.summary || `Strong price velocity with ${rvol.toFixed(1)}x relative volume.`,
-      } : {
-        id: `news-${symbol}`,
-        headline: `${symbol} Active Volume Surge Across Session`,
-        source: 'Reuters Financial',
-        publishedAt: '25m ago',
-        sentiment: 'BULLISH',
-        impactScore: 80,
-        summary: `Surging ${dayChangePct >= 0 ? '+' : ''}${dayChangePct.toFixed(2)}% with institutional block interest.`,
-      },
+        id: String(item.recentNews.id || `news-${symbol}`),
+        headline: item.recentNews.headline || '',
+        source: item.recentNews.source || '',
+        publishedAt: item.recentNews.publishedAt || '',
+        sentiment: item.recentNews.sentiment || (dayChangePct >= 0 ? 'BULLISH' : 'BEARISH'),
+        impactScore: Number(item.recentNews.impactScore || 50),
+        summary: item.recentNews.summary || '',
+      } : undefined,
       recentFiling: item.recentFiling ? {
-        id: item.recentFiling.id || `filing-${symbol}`,
+        id: String(item.recentFiling.id || `filing-${symbol}`),
         formType: item.recentFiling.formType || '8-K',
-        filingDate: item.recentFiling.filingDate || 'Today 09:15 AM',
-        title: item.recentFiling.title || 'Form 8-K Current Report',
+        filingDate: item.recentFiling.filingDate || '',
+        title: item.recentFiling.title || '',
         significance: item.recentFiling.significance || 'HIGH',
-      } : (dayChangePct > 5.0 ? {
-        id: `filing-${symbol}`,
-        formType: '8-K',
-        filingDate: 'Today 09:05 AM',
-        title: 'Form 8-K: Material Definitive Agreement',
-        significance: 'HIGH',
-      } : undefined),
+      } : undefined,
       isPersonalized: Boolean(item.isPersonalized || item.isOwned),
-      tags: item.tags || [item.primaryAlgorithm || 'MOMENTUM', 'ACTIVE_SCAN'],
+      tags: item.tags || [item.primaryAlgorithm || 'MOMENTUM'],
     };
   }
 

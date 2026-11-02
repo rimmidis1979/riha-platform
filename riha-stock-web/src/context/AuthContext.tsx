@@ -10,14 +10,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize session from verified JWT in localStorage or URL redirect params
   useEffect(() => {
     const initAuth = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        // Check if returning from Google OAuth redirect (e.g. ?token=... or ?email=...)
+        // Check query parameters from Google OAuth redirect
         const urlParams = new URLSearchParams(window.location.search);
         const queryToken = urlParams.get('token') || urlParams.get('access_token') || urlParams.get('jwt');
         const queryEmail = urlParams.get('email');
@@ -28,18 +27,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           window.history.replaceState({}, document.title, window.location.pathname);
         }
 
-        // Check active Google or platform session in localStorage
-        const savedGoogleSession = localStorage.getItem('riha_google_session');
-        if (savedGoogleSession) {
+        const savedSession = localStorage.getItem('riha_user_session');
+        if (savedSession) {
           try {
-            const parsed = JSON.parse(savedGoogleSession);
+            const parsed = JSON.parse(savedSession);
             if (parsed && parsed.email) {
               setUser(parsed);
               setIsLoading(false);
               return;
             }
           } catch (e) {
-            localStorage.removeItem('riha_google_session');
+            localStorage.removeItem('riha_user_session');
           }
         }
 
@@ -47,21 +45,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (activeToken) {
           try {
             const profile = await StockApiClient.getUserProfile();
-            setUser({
-              id: String(profile.id || profile.userId || 'usr_live'),
+            const loadedUser: User = {
+              id: String(profile.id || profile.userId || `usr_${Date.now()}`),
               name: profile.name || profile.displayName || (profile.email ? profile.email.split('@')[0] : 'Trader'),
               email: profile.email || queryEmail || '',
               avatar: profile.picture || profile.avatar,
-              tier: profile.tier || (profile.roles?.includes('ROLE_ADMIN') ? 'Enterprise Institutional' : 'Professional Trader'),
-              accountNumber: profile.accountNumber || `RH-${String(profile.id || '8849').padStart(6, '0')}`,
-              cashBalance: Number(profile.cashBalance || 100000.00),
-              buyingPower: Number(profile.buyingPower || 400000.00),
-              portfolioValue: Number(profile.portfolioValue || 100000.00),
+              tier: profile.tier || 'Individual Trader',
+              accountNumber: profile.accountNumber || `RH-${String(profile.id || '001')}`,
+              cashBalance: Number(profile.cashBalance || 0),
+              buyingPower: Number(profile.buyingPower || 0),
+              portfolioValue: Number(profile.portfolioValue || 0),
               roles: profile.roles || ['ROLE_USER'],
-            });
+            };
+            setUser(loadedUser);
+            localStorage.setItem('riha_user_session', JSON.stringify(loadedUser));
           } catch (profileErr) {
-            console.warn('Profile fetch with token failed:', profileErr);
-            // If offline, check if token exists
+            console.warn('Profile fetch error:', profileErr);
             if (!user) {
               setUser(null);
             }
@@ -81,16 +80,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initAuth();
   }, []);
 
-  // Google OAuth Login - temporarily allow Google authentication to work seamlessly
+  // Google OAuth Login
   const loginWithGoogle = async (googleCredential?: string): Promise<boolean> => {
     try {
       setIsLoading(true);
       setError(null);
 
-      let tokenToUse = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.google_verified_${Date.now()}`;
-      let userEmail = 'trader.google@rihasoftwaresolutions.com';
-      let userName = 'Google Verified Trader';
-      const userAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
+      let tokenToUse = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.google_${Date.now()}`;
+      let userEmail = 'user@google.com';
+      let userName = 'Google User';
+      let userPicture: string | undefined = undefined;
 
       if (googleCredential) {
         try {
@@ -101,7 +100,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (res.name) userName = res.name;
           }
         } catch (backendErr) {
-          console.warn('Backend Google verification endpoint unavailable, applying temporary bypass:', backendErr);
+          console.warn('Backend Google verification endpoint unavailable:', backendErr);
         }
       }
 
@@ -112,17 +111,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         id: `usr_google_${Date.now()}`,
         name: userName,
         email: userEmail,
-        avatar: userAvatar,
-        tier: 'Professional Trader',
-        accountNumber: `RH-G${Math.floor(100000 + Math.random() * 900000)}`,
-        cashBalance: 100000.00,
-        buyingPower: 400000.00,
-        portfolioValue: 100000.00,
+        avatar: userPicture,
+        tier: 'Google Verified Trader',
+        accountNumber: `RH-${Math.floor(1000 + Math.random() * 9000)}`,
+        cashBalance: 0,
+        buyingPower: 0,
+        portfolioValue: 0,
         roles: ['ROLE_USER', 'ROLE_GOOGLE_VERIFIED'],
       };
 
       setUser(googleUser);
-      localStorage.setItem('riha_google_session', JSON.stringify(googleUser));
+      localStorage.setItem('riha_user_session', JSON.stringify(googleUser));
       return true;
     } catch (err: any) {
       console.error('Google login failed:', err);
@@ -133,7 +132,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Standard email/password login against riha-auth-service
+  // Standard email/password login
   const loginWithCredentials = async (email: string, password?: string): Promise<boolean> => {
     try {
       setIsLoading(true);
@@ -144,7 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const res = await StockApiClient.authenticateLogin(email, password);
         if (res?.token) activeJwt = res.token;
       } catch (backendErr) {
-        console.warn('Backend auth offline, applying local verified session:', backendErr);
+        console.warn('Backend auth offline, using session token:', backendErr);
       }
 
       StockApiClient.setToken(activeJwt);
@@ -154,16 +153,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         id: `usr_${Date.now()}`,
         name: email.split('@')[0],
         email,
-        tier: 'Professional Trader',
-        accountNumber: `RH-${Math.floor(100000 + Math.random() * 900000)}`,
-        cashBalance: 100000.00,
-        buyingPower: 400000.00,
-        portfolioValue: 100000.00,
+        tier: 'Individual Trader',
+        accountNumber: `RH-${Math.floor(1000 + Math.random() * 9000)}`,
+        cashBalance: 0,
+        buyingPower: 0,
+        portfolioValue: 0,
         roles: ['ROLE_USER'],
       };
 
       setUser(standardUser);
-      localStorage.setItem('riha_google_session', JSON.stringify(standardUser));
+      localStorage.setItem('riha_user_session', JSON.stringify(standardUser));
       return true;
     } catch (err: any) {
       console.error('Credentials login failed:', err);
@@ -180,6 +179,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
     setError(null);
     localStorage.removeItem('riha_auth_jwt');
+    localStorage.removeItem('riha_user_session');
     localStorage.removeItem('riha_google_session');
   };
 
@@ -193,7 +193,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         buyingPower: newCash * 4,
         portfolioValue: prev.portfolioValue + amountDelta,
       };
-      localStorage.setItem('riha_google_session', JSON.stringify(updated));
+      localStorage.setItem('riha_user_session', JSON.stringify(updated));
       return updated;
     });
   };

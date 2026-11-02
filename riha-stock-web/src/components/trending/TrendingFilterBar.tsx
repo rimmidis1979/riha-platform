@@ -26,7 +26,7 @@ export const TrendingFilterBar: React.FC<TrendingFilterBarProps> = ({
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search by ticker, company, or catalyst (e.g. NVDA, TSLA, 8-K)..."
+            placeholder="Search by ticker, company name, or filing..."
             value={filters.searchQuery}
             onChange={(e) => setFilters((prev) => ({ ...prev, searchQuery: e.target.value }))}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
