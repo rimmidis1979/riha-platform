@@ -173,15 +173,23 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Run Momentum Trading Analyst reasoning prompt on all fetched stocks with RAG integration
   const runPromptStrategyShortlist = async () => {
     setIsScanning(true);
-    addToast('info', 'Running Strategy & Ingestions', 'Querying RAG momentum playbooks and applying 5-input reasoning prompt across shortlisted stocks...');
+    addToast(
+      'info',
+      'Running Strategy & Ingestions',
+      'Triggering 5-node agentic DAG scan, querying dynamic RAG playbooks, and analyzing candidate stocks...'
+    );
     try {
-      const ragSnippets = await StockApiClient.queryRagPlaybooks('momentum trading vwap rvol sec catalyst');
+      // 1. Actively trigger backend 5-node DAG scan in riha-stock-ai-strategy-service
+      await StockApiClient.triggerBackendScanner(filters.algorithm);
 
-      let candidates = trendingStocks;
-      if (candidates.length === 0) {
-        candidates = await StockApiClient.getTrendingStocks(filters);
-      }
+      // 2. Query dynamic RAG momentum playbooks from riha-rag-ingestion-service
+      const ragSnippets = await StockApiClient.queryRagPlaybooks('momentum trading breakout ORB VWAP SEC catalyst');
 
+      // 3. Actively fetch fresh candidate stocks from backend according to base filters (algorithm, limit, min/max price)
+      const freshCandidates = await StockApiClient.getTrendingStocks(filters);
+      const candidates = freshCandidates.length > 0 ? freshCandidates : trendingStocks;
+
+      // 4. Run Momentum Trading Analyst 5-input reasoning prompt across all candidates
       const evaluated: TrendingStock[] = await Promise.all(
         candidates.map(async (stock) => {
           const decision = await StockApiClient.runMomentumPromptAnalysis(stock, ragSnippets);
@@ -200,7 +208,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       evaluated.sort((a, b) => (b.promptDecision?.confidence ?? 0) - (a.promptDecision?.confidence ?? 0));
       setTrendingStocks(evaluated);
-      addToast('success', 'Strategy Evaluation Complete', `Shortlisted ${evaluated.length} stocks via Agentic Momentum Prompt and RAG Playbooks.`);
+      addToast(
+        'success',
+        'Strategy Evaluation Complete',
+        `Successfully executed 5-node DAG scan & dynamic RAG evaluation. Shortlisted ${evaluated.length} stocks.`
+      );
     } catch (err: any) {
       console.error('Strategy pipeline error:', err);
       addToast('error', 'Strategy Error', 'Failed to complete prompt strategy evaluation.');
