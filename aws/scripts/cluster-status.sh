@@ -83,11 +83,11 @@ echo "    Total Managed Services : ${TOTAL_SERVICES}"
 echo "    Total Desired Tasks    : ${TOTAL_DESIRED}"
 echo "    Total Running Tasks    : ${TOTAL_RUNNING}"
 if [ "${TOTAL_RUNNING}" -eq 0 ]; then
-  echo "  💰 COST STATUS: IDLE ZERO-COST ($0.00/hr compute burn)"
+  echo "  💰 COST STATUS: IDLE ZERO-COST (\$0.00/hr compute burn)"
 else
-  # Estimated Fargate: ~$0.04048 per vCPU-hr + $0.004445 per GB-hr (~$0.02 - $0.05/hr/task)
+  # Estimated Fargate: ~$0.04048 per vCPU-hr + \$0.004445 per GB-hr (~$0.02 - $0.05/hr/task)
   EST_COST=$(awk -v t="${TOTAL_RUNNING}" 'BEGIN { printf "%.2f", t * 0.035 }')
   echo "  ⚡ COST STATUS: ACTIVE (~$${EST_COST}/hr estimated compute burn for ${TOTAL_RUNNING} tasks)"
-  echo "  💡 TIP: Run './aws/scripts/stop-all-microservices.sh' to halt all tasks and reduce cost to $0.00."
+  echo "  💡 TIP: Run './aws/scripts/stop-all-microservices.sh' to halt all tasks and reduce cost to \$0.00."
 fi
 echo "=============================================================================="

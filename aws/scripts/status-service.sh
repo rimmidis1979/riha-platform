@@ -49,7 +49,7 @@ if [ -n "${TASK_ARNS}" ] && [ "${TASK_ARNS}" != "None" ]; then
 else
   echo ""
   echo "ℹ️  Service is currently STOPPED (desired-count=0, running=0)."
-  echo "💰 Compute cost is $0.00."
+  echo "💰 Compute cost is \$0.00."
   echo "💡 Run './aws/scripts/start-service.sh ${SERVICE_NAME}' to wake it up."
 fi
 echo "=============================================================================="

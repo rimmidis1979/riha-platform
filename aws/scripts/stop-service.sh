@@ -52,5 +52,5 @@ fi
 
 echo "=============================================================================="
 echo "✅ ${SERVICE_NAME} scaled to 0 tasks and all compute stopped."
-echo "💰 Fargate compute costs for ${SERVICE_NAME} are now $0.00."
+echo "💰 Fargate compute costs for ${SERVICE_NAME} are now \$0.00."
 echo "=============================================================================="

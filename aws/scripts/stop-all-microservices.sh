@@ -99,7 +99,7 @@ echo ""
 echo "=============================================================================="
 if [[ -z "${REMAINING_TASKS}" || "${REMAINING_TASKS}" == "None" ]]; then
   echo "✅ FULL SHUTDOWN COMPLETE: All microservices and tasks have been halted."
-  echo "💰 Zero active tasks running. Cluster compute cost is strictly $0.00."
+  echo "💰 Zero active tasks running. Cluster compute cost is strictly \$0.00."
 else
   echo "⚠️  Some tasks are still draining: ${REMAINING_TASKS}"
 fi
