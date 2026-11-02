@@ -1,5 +1,6 @@
 spring:
   config:
     import:
+      - "optional:configserver:${CONFIG_SERVER_URL:http://riha-config-service.riha.internal:8888}"
       - "optional:aws-parameterstore:/config/application/"
       - "optional:aws-parameterstore:/config/${spring.application.name}/"
