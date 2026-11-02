@@ -12,10 +12,12 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,7 +46,7 @@ public class RobinhoodMcpServerController {
      * Standard Model Context Protocol (MCP) JSON-RPC 2.0 endpoint over HTTP.
      * Compatible with Claude, Cursor, AI agents, and RIHA MCP Gateway.
      */
-    @PostMapping(value = {"/mcp", "/mcp/trading", "/api/v1/mcp"}, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = { "/mcp", "/mcp/trading", "/api/v1/mcp" }, produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Model Context Protocol (MCP) JSON-RPC 2.0 Streamable HTTP endpoint")
     public ResponseEntity<Map<String, Object>> handleMcpJsonRpc(@RequestBody Map<String, Object> request) {
         Object id = request.getOrDefault("id", 1);
@@ -66,8 +68,7 @@ public class RobinhoodMcpServerController {
                             "name", "riha-stock-ai-robinhood-mcp-server",
                             "version", "1.0.0",
                             "description", "Robinhood Agentic Trading MCP Gateway with Cryptographic Critic Guard",
-                            "upstreamMcp", "https://agent.robinhood.com/mcp/trading"
-                    ));
+                            "upstreamMcp", "https://agent.robinhood.com/mcp/trading"));
                     response.put("result", result);
                 }
                 case "tools/list" -> {
@@ -115,15 +116,72 @@ public class RobinhoodMcpServerController {
     @Operation(summary = "Invoke a strictly typed @Tool operation on riha-stock-ai-robinhood-mcp-server")
     public ResponseEntity<Object> invokeMcpTool(
             @PathVariable String toolName,
-            @RequestBody(required = false) Map<String, Object> arguments) {
+            @RequestBody(required = false) Map<String, Object> arguments,
+            @RequestHeader(value = "X-Robinhood-Api-Key", required = false) String apiKeyHeader,
+            @RequestHeader(value = "X-Robinhood-Private-Key", required = false) String privateKeyHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         Map<String, Object> args = arguments != null ? arguments : Map.of();
+        String apiKey = (apiKeyHeader != null && !apiKeyHeader.isBlank()) ? apiKeyHeader
+                : (authHeader != null && authHeader.startsWith("Bearer ")
+                        && !authHeader.substring(7).trim().startsWith("eyJ")) ? authHeader.substring(7).trim()
+                                : String.valueOf(args.getOrDefault("apiKey",
+                                        args.getOrDefault("api_key", args.getOrDefault("bearerToken", ""))));
+        String privateKey = (privateKeyHeader != null && !privateKeyHeader.isBlank()) ? privateKeyHeader
+                : String.valueOf(args.getOrDefault("privateKey", args.getOrDefault("private_key", "")));
+
+        if (apiKey != null && !apiKey.isBlank() && !"null".equalsIgnoreCase(apiKey)) {
+            mcpTools.setDynamicApiKey(apiKey);
+        }
+        if (privateKey != null && !privateKey.isBlank() && !"null".equalsIgnoreCase(privateKey)) {
+            mcpTools.setDynamicPrivateKey(privateKey);
+        }
         Object output = executeMcpToolInternal(toolName, args);
         return ResponseEntity.ok(output);
     }
 
+    @PostMapping("/api/v1/robinhood/credentials")
+    @Operation(summary = "Register dynamic Robinhood user-level API key or Bearer Token for live MCP operations")
+    public ResponseEntity<Map<String, Object>> updateCredentials(
+            @RequestBody(required = false) Map<String, Object> body) {
+        String key = body != null ? String.valueOf(body.getOrDefault("apiKey", body.getOrDefault("token", ""))) : "";
+        String privateKey = body != null
+                ? String.valueOf(body.getOrDefault("privateKey", body.getOrDefault("private_key", "")))
+                : "";
+        if (key != null && !key.isBlank() && !"null".equalsIgnoreCase(key)) {
+            mcpTools.setDynamicApiKey(key);
+        }
+        if (privateKey != null && !privateKey.isBlank() && !"null".equalsIgnoreCase(privateKey)) {
+            mcpTools.setDynamicPrivateKey(privateKey);
+        }
+        return ResponseEntity.ok(Map.of(
+                "status", "CONNECTED",
+                "configured", (key != null && !key.isBlank() && !"null".equalsIgnoreCase(key)),
+                "timestamp", java.time.Instant.now().toString()));
+    }
+
+    @DeleteMapping("/api/v1/robinhood/credentials")
+    @Operation(summary = "Disconnect dynamic Robinhood user-level API key")
+    public ResponseEntity<Map<String, Object>> removeCredentials() {
+        mcpTools.setDynamicApiKey("");
+        mcpTools.setDynamicPrivateKey("");
+        return ResponseEntity.ok(Map.of(
+                "status", "DISCONNECTED",
+                "timestamp", java.time.Instant.now().toString()));
+    }
+
     @GetMapping("/api/v1/robinhood/account")
     @Operation(summary = "Get live Robinhood buying power and open equity positions")
-    public ResponseEntity<LiveBuyingPowerAndPositionsResponse> getAccount() {
+    public ResponseEntity<LiveBuyingPowerAndPositionsResponse> getAccount(
+            @RequestHeader(value = "X-Robinhood-Api-Key", required = false) String apiKeyHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (apiKeyHeader != null && !apiKeyHeader.isBlank()) {
+            mcpTools.setDynamicApiKey(apiKeyHeader);
+        } else if (authHeader != null && authHeader.startsWith("Bearer ") && authHeader.length() > 7) {
+            String token = authHeader.substring(7).trim();
+            if (!token.startsWith("eyJ")) {
+                mcpTools.setDynamicApiKey(token);
+            }
+        }
         return ResponseEntity.ok(mcpTools.getLiveBuyingPowerAndPositions());
     }
 
@@ -158,7 +216,7 @@ public class RobinhoodMcpServerController {
     private Object executeMcpToolInternal(String toolName, Map<String, Object> args) {
         return switch (toolName.trim().toLowerCase(Locale.ROOT)) {
             case "getlivebuyingpowerandpositions", "getliveaccountandprofitsummary", "get_portfolio", "get_accounts" ->
-                    mcpTools.getLiveAccountAndProfitSummary();
+                mcpTools.getLiveAccountAndProfitSummary();
             case "submitlimitorder", "executeautotradeorder", "place_equity_order" -> {
                 TradeOrderRequest orderReq = parseTradeOrderRequest(args);
                 yield mcpTools.executeAutoTradeOrder(orderReq);
@@ -172,7 +230,8 @@ public class RobinhoodMcpServerController {
                 yield mcpTools.getOrderExecutionStatus(orderId);
             }
             default -> {
-                String criticSig = String.valueOf(args.getOrDefault("criticApprovalToken", args.getOrDefault("criticSignature", "")));
+                String criticSig = String
+                        .valueOf(args.getOrDefault("criticApprovalToken", args.getOrDefault("criticSignature", "")));
                 yield mcpTools.invokeRobinhoodMcpTool(toolName, args, criticSig);
             }
         };
@@ -183,14 +242,17 @@ public class RobinhoodMcpServerController {
             return objectMapper.convertValue(args, TradeOrderRequest.class);
         } catch (Exception ex) {
             // Support direct Robinhood MCP arguments: symbol, side, quantity, price, etc.
-            String ticker = String.valueOf(args.getOrDefault("symbol", args.getOrDefault("ticker", "NVDA")));
-            String action = String.valueOf(args.getOrDefault("side", args.getOrDefault("action", "BUY"))).toUpperCase(Locale.ROOT);
-            String orderType = String.valueOf(args.getOrDefault("order_type", args.getOrDefault("orderType", "LIMIT"))).toUpperCase(Locale.ROOT);
+            String ticker = String.valueOf(args.getOrDefault("symbol", args.getOrDefault("ticker", ""))).trim();
+            String action = String.valueOf(args.getOrDefault("side", args.getOrDefault("action", "BUY")))
+                    .toUpperCase(Locale.ROOT);
+            String orderType = String.valueOf(args.getOrDefault("order_type", args.getOrDefault("orderType", "LIMIT")))
+                    .toUpperCase(Locale.ROOT);
             int quantity = args.get("quantity") instanceof Number n ? n.intValue() : 1;
             BigDecimal price = args.get("price") != null ? new BigDecimal(String.valueOf(args.get("price")))
                     : args.get("limitPrice") != null ? new BigDecimal(String.valueOf(args.get("limitPrice")))
-                    : BigDecimal.ZERO;
-            String criticSig = String.valueOf(args.getOrDefault("criticApprovalToken", args.getOrDefault("criticSignature", "")));
+                            : BigDecimal.ZERO;
+            String criticSig = String
+                    .valueOf(args.getOrDefault("criticApprovalToken", args.getOrDefault("criticSignature", "")));
 
             return new TradeOrderRequest(
                     UUID.randomUUID(),
@@ -202,8 +264,7 @@ public class RobinhoodMcpServerController {
                     price,
                     null,
                     null,
-                    criticSig
-            );
+                    criticSig);
         }
     }
 
@@ -212,25 +273,23 @@ public class RobinhoodMcpServerController {
 
         tools.add(Map.of(
                 "name", "get_portfolio",
-                "description", "Retrieves aggregate portfolio equity, cash buying power, unsettled funds, and open positions from live Robinhood Agentic MCP server.",
+                "description",
+                "Retrieves aggregate portfolio equity, cash buying power, unsettled funds, and open positions from live Robinhood Agentic MCP server.",
                 "inputSchema", Map.of(
                         "type", "object",
-                        "properties", Map.of()
-                )
-        ));
+                        "properties", Map.of())));
 
         tools.add(Map.of(
                 "name", "get_accounts",
                 "description", "Fetches active Robinhood Agentic trading account details and buying power.",
                 "inputSchema", Map.of(
                         "type", "object",
-                        "properties", Map.of()
-                )
-        ));
+                        "properties", Map.of())));
 
         tools.add(Map.of(
                 "name", "place_equity_order",
-                "description", "Places a live buy or sell order on Robinhood Agentic MCP server. Mandatory Cryptographic Critic signature required.",
+                "description",
+                "Places a live buy or sell order on Robinhood Agentic MCP server. Mandatory Cryptographic Critic signature required.",
                 "inputSchema", Map.of(
                         "type", "object",
                         "properties", Map.of(
@@ -239,11 +298,10 @@ public class RobinhoodMcpServerController {
                                 "quantity", Map.of("type", "integer", "description", "Share count"),
                                 "order_type", Map.of("type", "string", "enum", List.of("market", "limit")),
                                 "price", Map.of("type", "number", "description", "Limit price"),
-                                "criticApprovalToken", Map.of("type", "string", "description", "Cryptographic Critic approval signature (RIHA-CRITIC-SIG-v1...)")
-                        ),
-                        "required", List.of("symbol", "side", "quantity", "criticApprovalToken")
-                )
-        ));
+                                "criticApprovalToken",
+                                Map.of("type", "string", "description",
+                                        "Cryptographic Critic approval signature (RIHA-CRITIC-SIG-v1...)")),
+                        "required", List.of("symbol", "side", "quantity", "criticApprovalToken"))));
 
         tools.add(Map.of(
                 "name", "cancel_equity_order",
@@ -251,20 +309,16 @@ public class RobinhoodMcpServerController {
                 "inputSchema", Map.of(
                         "type", "object",
                         "properties", Map.of(
-                                "order_id", Map.of("type", "string", "description", "Order ID to cancel")
-                        ),
-                        "required", List.of("order_id")
-                )
-        ));
+                                "order_id", Map.of("type", "string", "description", "Order ID to cancel")),
+                        "required", List.of("order_id"))));
 
         tools.add(Map.of(
                 "name", "getLiveBuyingPowerAndPositions",
-                "description", "Legacy RIHA tool: Returns real-time cash balance, unsettled funds, and open equity positions.",
+                "description",
+                "Legacy RIHA tool: Returns real-time cash balance, unsettled funds, and open equity positions.",
                 "inputSchema", Map.of(
                         "type", "object",
-                        "properties", Map.of()
-                )
-        ));
+                        "properties", Map.of())));
 
         tools.add(Map.of(
                 "name", "submitLimitOrder",
@@ -276,11 +330,8 @@ public class RobinhoodMcpServerController {
                                 "action", Map.of("type", "string"),
                                 "quantity", Map.of("type", "integer"),
                                 "limitPrice", Map.of("type", "number"),
-                                "criticApprovalToken", Map.of("type", "string")
-                        ),
-                        "required", List.of("ticker", "action", "quantity", "limitPrice", "criticApprovalToken")
-                )
-        ));
+                                "criticApprovalToken", Map.of("type", "string")),
+                        "required", List.of("ticker", "action", "quantity", "limitPrice", "criticApprovalToken"))));
 
         return tools;
     }

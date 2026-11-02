@@ -108,8 +108,6 @@ public class PortfolioRiskService {
         sectors.put("Healthcare", new BigDecimal("8.50"));
 
         Map<String, Double> correlations = new LinkedHashMap<>();
-        correlations.put("NVDA-AMD", 0.82);
-        correlations.put("TSLA-PLTR", 0.68);
 
         return new PortfolioRiskSnapshot(
                 new BigDecimal("100000.00"),

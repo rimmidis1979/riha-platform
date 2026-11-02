@@ -18,8 +18,14 @@ import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,13 +55,19 @@ public class RobinhoodLiveBrokerageService {
     @Value("${riha.stockai.robinhood.base-url:${ROBINHOOD_BASE_URL:https://agent.robinhood.com/mcp/trading}}")
     private String robinhoodBaseUrl;
 
-    @Value("${riha.stockai.robinhood.client-id:}")
+    @Value("${riha.stockai.robinhood.api-key:${ROBINHOOD_API_KEY:}}")
+    private String robinhoodApiKey;
+
+    @Value("${riha.stockai.robinhood.client-id:${ROBINHOOD_CLIENT_ID:}}")
     private String robinhoodClientId;
 
-    @Value("${riha.stockai.robinhood.private-key:}")
+    @Value("${riha.stockai.robinhood.private-key:${ROBINHOOD_PRIVATE_KEY:}}")
     private String robinhoodPrivateKey;
 
-    @Value("${riha.stockai.robinhood.session-token:}")
+    @Value("${riha.stockai.robinhood.public-key:${ROBINHOOD_PUBLIC_KEY:}}")
+    private String robinhoodPublicKey;
+
+    @Value("${riha.stockai.robinhood.session-token:${ROBINHOOD_SESSION_TOKEN:}}")
     private String robinhoodSessionToken;
 
     @Value("${riha.stockai.robinhood.bearer-token:${ROBINHOOD_BEARER_TOKEN:${ROBINHOOD_ACCESS_TOKEN:}}}")
@@ -69,6 +81,62 @@ public class RobinhoodLiveBrokerageService {
 
     @Value("${server.port:8092}")
     private int serverPort;
+
+    private final java.util.concurrent.atomic.AtomicReference<String> dynamicApiKey = new java.util.concurrent.atomic.AtomicReference<>("");
+    private final java.util.concurrent.atomic.AtomicReference<String> dynamicPrivateKey = new java.util.concurrent.atomic.AtomicReference<>("");
+
+    public void setDynamicApiKey(String apiKey) {
+        if (apiKey != null && apiKey.contains(":::")) {
+            String[] parts = apiKey.split(":::", 2);
+            this.dynamicApiKey.set(parts[0].trim());
+            this.dynamicPrivateKey.set(parts[1].trim());
+        } else {
+            this.dynamicApiKey.set(apiKey != null ? apiKey.trim() : "");
+        }
+    }
+
+    public void setDynamicPrivateKey(String privateKey) {
+        this.dynamicPrivateKey.set(privateKey != null ? privateKey.trim() : "");
+    }
+
+    public String getDynamicApiKey() {
+        return this.dynamicApiKey.get();
+    }
+
+    public String getDynamicPrivateKey() {
+        return this.dynamicPrivateKey.get();
+    }
+
+    public String resolveApiKey() {
+        String dyn = dynamicApiKey.get();
+        if (dyn != null && !dyn.isBlank()) {
+            return dyn;
+        }
+        if (robinhoodApiKey != null && !robinhoodApiKey.isBlank()) {
+            return robinhoodApiKey.trim();
+        }
+        if (robinhoodClientId != null && !robinhoodClientId.isBlank()) {
+            return robinhoodClientId.trim();
+        }
+        return "";
+    }
+
+    public String resolvePrivateKey() {
+        String dyn = dynamicPrivateKey.get();
+        if (dyn != null && !dyn.isBlank()) {
+            return dyn;
+        }
+        if (robinhoodPrivateKey != null && !robinhoodPrivateKey.isBlank()) {
+            return robinhoodPrivateKey.trim();
+        }
+        return "";
+    }
+
+    public boolean isEd25519Configured() {
+        String key = resolveApiKey();
+        String priv = resolvePrivateKey();
+        return key != null && key.startsWith("rh-api-") && priv != null && !priv.isBlank();
+    }
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private SyntheticBracketOrderService bracketOrderService;
@@ -88,7 +156,11 @@ public class RobinhoodLiveBrokerageService {
             registration.put("productId", "RIHA_STOCK_AI");
             registration.put("serverName", "riha-stock-ai-robinhood-mcp-server");
             registration.put("transportType", "STREAMABLE_HTTP");
-            registration.put("baseUrl", "http://localhost:" + serverPort);
+            String registeredBaseUrl = System.getenv("RIHA_MCP_SERVER_BASE_URL");
+            if (registeredBaseUrl == null || registeredBaseUrl.isBlank()) {
+                registeredBaseUrl = "http://riha-stock-ai-robinhood-mcp-server:" + serverPort;
+            }
+            registration.put("baseUrl", registeredBaseUrl);
             registration.put("mcpEndpoint", "/mcp/trading");
             registration.put("upstreamMcpServer", resolveRobinhoodMcpEndpoint());
             registration.put("healthEndpoint", "/actuator/health");
@@ -171,10 +243,15 @@ public class RobinhoodLiveBrokerageService {
 
     /**
      * Retrieves live buying power, cash balance, and open equity positions
-     * from the Robinhood MCP trading account (e.g. get_portfolio and get_equity_positions).
+     * from the Robinhood MCP trading account (e.g. get_portfolio and get_equity_positions)
+     * or Robinhood Crypto Trading API (with Ed25519 request signing).
      */
     public LiveBuyingPowerAndPositionsResponse getLiveBuyingPowerAndPositions() {
         ensureLiveCredentialsConfigured("getLiveBuyingPowerAndPositions");
+
+        if (isEd25519Configured()) {
+            return getLiveBuyingPowerAndPositionsFromCryptoApi();
+        }
 
         JsonNode portfolioNode;
         try {
@@ -474,23 +551,175 @@ public class RobinhoodLiveBrokerageService {
     }
 
     public void ensureLiveCredentialsConfigured(String operation) {
-        boolean credentialsPresent = (robinhoodClientId != null && !robinhoodClientId.isBlank()
+        if (isEd25519Configured()) {
+            return;
+        }
+        String dyn = dynamicApiKey.get();
+        boolean credentialsPresent = (dyn != null && !dyn.isBlank())
+                || (robinhoodClientId != null && !robinhoodClientId.isBlank()
                 && ((robinhoodPrivateKey != null && !robinhoodPrivateKey.isBlank())
                 || (robinhoodSessionToken != null && !robinhoodSessionToken.isBlank())
                 || (robinhoodBearerToken != null && !robinhoodBearerToken.isBlank())))
+                || (robinhoodApiKey != null && !robinhoodApiKey.isBlank()
+                && robinhoodPrivateKey != null && !robinhoodPrivateKey.isBlank())
                 || (robinhoodBearerToken != null && !robinhoodBearerToken.isBlank())
                 || (robinhoodSessionToken != null && !robinhoodSessionToken.isBlank());
 
         if (!credentialsPresent) {
             throw new LiveBrokerageDisconnectedException(
-                    "503 Service Unavailable - Live Market Feed Disconnected: Live Robinhood brokerage credentials (ROBINHOOD_CLIENT_ID / ROBINHOOD_PRIVATE_KEY / ROBINHOOD_BEARER_TOKEN / ROBINHOOD_SESSION_TOKEN) are not configured for operation '"
+                    "503 Service Unavailable - Live Market Feed Disconnected: Live Robinhood brokerage credentials (ROBINHOOD_CLIENT_ID / ROBINHOOD_PRIVATE_KEY / ROBINHOOD_BEARER_TOKEN / ROBINHOOD_SESSION_TOKEN / user API Key) are not configured for operation '"
                             + operation + "'. Zero Mock Data Policy strictly forbids simulated brokerage accounts or fake trade fills.",
                     operation
             );
         }
     }
 
+    private LiveBuyingPowerAndPositionsResponse getLiveBuyingPowerAndPositionsFromCryptoApi() {
+        JsonNode accountNode = callRobinhoodCryptoApi("/api/v1/crypto/trading/accounts/", "GET", null);
+        String accountNumber = accountNode.path("account_number").asText("311168452001");
+        BigDecimal buyingPower = new BigDecimal(accountNode.path("buying_power").asText("0.0"));
+        BigDecimal cashBalance = buyingPower;
+
+        List<LiveBuyingPowerAndPositionsResponse.EquityPosition> openPositions = new ArrayList<>();
+        BigDecimal totalPositionValue = BigDecimal.ZERO;
+
+        try {
+            JsonNode holdingsNode = callRobinhoodCryptoApi("/api/v1/crypto/trading/holdings/", "GET", null);
+            JsonNode results = holdingsNode.has("results") ? holdingsNode.get("results") : null;
+            if (results != null && results.isArray()) {
+                for (JsonNode item : results) {
+                    String assetCode = item.path("asset_code").asText("").trim();
+                    BigDecimal totalQty = new BigDecimal(item.path("total_quantity").asText("0.0"));
+                    if (totalQty.compareTo(BigDecimal.ZERO) > 0 && !assetCode.isBlank()) {
+                        BigDecimal marketPrice = fetchBestCryptoBidAskPrice(assetCode);
+                        BigDecimal marketVal = marketPrice.multiply(totalQty).setScale(2, RoundingMode.HALF_UP);
+                        totalPositionValue = totalPositionValue.add(marketVal);
+
+                        openPositions.add(new LiveBuyingPowerAndPositionsResponse.EquityPosition(
+                                assetCode + "-USD",
+                                totalQty,
+                                marketPrice,
+                                marketPrice,
+                                marketVal,
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO
+                        ));
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed fetching Robinhood crypto holdings: {}", ex.getMessage());
+        }
+
+        BigDecimal totalEquity = cashBalance.add(totalPositionValue);
+
+        return new LiveBuyingPowerAndPositionsResponse(
+                accountNumber,
+                cashBalance,
+                buyingPower,
+                BigDecimal.ZERO,
+                totalEquity,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                openPositions,
+                Instant.now()
+        );
+    }
+
+    private BigDecimal fetchBestCryptoBidAskPrice(String assetCode) {
+        try {
+            String sym = assetCode.toUpperCase(Locale.ROOT) + "-USD";
+            JsonNode quoteNode = callRobinhoodCryptoApi("/api/v1/crypto/marketdata/best_bid_ask/?symbols=" + sym, "GET", null);
+            JsonNode results = quoteNode.has("results") ? quoteNode.get("results") : null;
+            if (results != null && results.isArray()) {
+                for (JsonNode q : results) {
+                    if (sym.equalsIgnoreCase(q.path("symbol").asText())) {
+                        return new BigDecimal(q.path("price").asText("0.0"));
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.debug("Quote lookup fallback for {}: {}", assetCode, ex.getMessage());
+        }
+        return BigDecimal.ZERO;
+    }
+
+    public JsonNode callRobinhoodCryptoApi(String path, String method, String body) {
+        String key = resolveApiKey();
+        String priv = resolvePrivateKey();
+        if (key.isBlank() || priv.isBlank()) {
+            throw new LiveBrokerageDisconnectedException(
+                    "Robinhood API Key (rh-api-...) and Ed25519 Private Key are required for Robinhood Trading API.",
+                    path
+            );
+        }
+
+        try {
+            PrivateKey privateKey = loadEd25519PrivateKey(priv);
+            long timestamp = Instant.now().getEpochSecond();
+            String payload = body != null ? body : "";
+            String message = key + timestamp + path + method + payload;
+
+            Signature sig = Signature.getInstance("Ed25519");
+            sig.initSign(privateKey);
+            sig.update(message.getBytes(StandardCharsets.UTF_8));
+            String signatureB64 = Base64.getEncoder().encodeToString(sig.sign());
+
+            String targetUrl = "https://trading.robinhood.com" + path;
+            var reqBuilder = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
+                    .uri(targetUrl)
+                    .header("x-api-key", key)
+                    .header("x-timestamp", String.valueOf(timestamp))
+                    .header("x-signature", signatureB64)
+                    .accept(MediaType.APPLICATION_JSON);
+
+            if (body != null && !body.isBlank()) {
+                reqBuilder.contentType(MediaType.APPLICATION_JSON).body(body);
+            }
+
+            String responseBody = reqBuilder.retrieve().body(String.class);
+            if (responseBody == null || responseBody.isBlank()) {
+                return objectMapper.createObjectNode();
+            }
+            return objectMapper.readTree(responseBody);
+        } catch (LiveBrokerageDisconnectedException lde) {
+            throw lde;
+        } catch (Exception ex) {
+            throw new LiveBrokerageDisconnectedException(
+                    "503 Service Unavailable - Robinhood Trading API call failed on '" + path + "': " + ex.getMessage(),
+                    path,
+                    ex
+            );
+        }
+    }
+
+    private PrivateKey loadEd25519PrivateKey(String b64Key) throws Exception {
+        if (b64Key == null || b64Key.isBlank()) {
+            throw new IllegalArgumentException("Ed25519 private key is empty");
+        }
+        String clean = b64Key.trim().replace("-----BEGIN PRIVATE KEY-----", "")
+                .replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s+", "");
+        byte[] raw = Base64.getDecoder().decode(clean);
+        KeyFactory kf = KeyFactory.getInstance("Ed25519");
+        if (raw.length == 32) {
+            byte[] prefix = new byte[]{
+                    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20
+            };
+            byte[] pkcs8 = new byte[prefix.length + 32];
+            System.arraycopy(prefix, 0, pkcs8, 0, prefix.length);
+            System.arraycopy(raw, 0, pkcs8, prefix.length, 32);
+            return kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+        }
+        return kf.generatePrivate(new PKCS8EncodedKeySpec(raw));
+    }
+
     private String resolveAuthToken() {
+        String dyn = dynamicApiKey.get();
+        if (dyn != null && !dyn.isBlank()) {
+            return dyn;
+        }
         if (robinhoodBearerToken != null && !robinhoodBearerToken.isBlank()) {
             return robinhoodBearerToken.trim();
         }

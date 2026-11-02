@@ -60,12 +60,24 @@ public record LiveBuyingPowerAndPositionsResponse(
 
     public record EquityPosition(
             String ticker,
-            Integer quantity,
+            BigDecimal quantity,
             BigDecimal averageCostPrice,
             BigDecimal liveMarketPrice,
             BigDecimal marketValueUsd,
             BigDecimal unrealizedPnlUsd,
             BigDecimal unrealizedPnlPct
     ) {
+        public EquityPosition(
+                String ticker,
+                Integer quantity,
+                BigDecimal averageCostPrice,
+                BigDecimal liveMarketPrice,
+                BigDecimal marketValueUsd,
+                BigDecimal unrealizedPnlUsd,
+                BigDecimal unrealizedPnlPct
+        ) {
+            this(ticker, quantity != null ? BigDecimal.valueOf(quantity) : BigDecimal.ZERO,
+                    averageCostPrice, liveMarketPrice, marketValueUsd, unrealizedPnlUsd, unrealizedPnlPct);
+        }
     }
 }

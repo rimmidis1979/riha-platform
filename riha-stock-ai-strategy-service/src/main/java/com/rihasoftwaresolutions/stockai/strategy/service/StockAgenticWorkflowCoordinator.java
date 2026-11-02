@@ -317,7 +317,11 @@ public class StockAgenticWorkflowCoordinator {
             return modeStatus;
         }
 
-        String ticker = sanitizeTicker(String.valueOf(request.getOrDefault("ticker", "NVDA")));
+        String rawTicker = String.valueOf(request.getOrDefault("ticker", "")).trim();
+        if (rawTicker.isBlank()) {
+            throw new IllegalArgumentException("Stock ticker must be specified for trade execution");
+        }
+        String ticker = sanitizeTicker(rawTicker);
         String side = String.valueOf(request.getOrDefault("side", "BUY")).trim().toUpperCase(Locale.ROOT);
         int quantity = request.get("quantity") instanceof Number n ? n.intValue() : 20;
 
@@ -1649,19 +1653,10 @@ public class StockAgenticWorkflowCoordinator {
     }
 
     private String getCompanyNameForTicker(String ticker) {
-        return switch (ticker.toUpperCase(Locale.ROOT)) {
-            case "NVDA" -> "NVIDIA Corporation";
-            case "AAPL" -> "Apple Inc.";
-            case "TSLA" -> "Tesla, Inc.";
-            case "PLTR" -> "Palantir Technologies Inc.";
-            case "AMD" -> "Advanced Micro Devices, Inc.";
-            case "SMCI" -> "Super Micro Computer, Inc.";
-            case "MARA" -> "MARA Holdings, Inc.";
-            case "COIN" -> "Coinbase Global, Inc.";
-            case "IONQ" -> "IonQ, Inc.";
-            case "RGTI" -> "Rigetti Computing, Inc.";
-            default -> ticker.toUpperCase(Locale.ROOT) + " Equity";
-        };
+        if (ticker == null || ticker.isBlank()) {
+            return "Common Stock";
+        }
+        return ticker.toUpperCase(Locale.ROOT) + " Common Stock";
     }
 }
 

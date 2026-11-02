@@ -31,51 +31,22 @@ public class SentimentNewsService {
     }
 
     public AggregatedSentimentSnapshot getTickerSentimentScore(String ticker) {
-        String sym = ticker != null ? ticker.trim().toUpperCase(Locale.ROOT) : "NVDA";
+        String sym = (ticker != null && !ticker.isBlank()) ? ticker.trim().toUpperCase(Locale.ROOT) : "MARKET";
         return sentimentCache.computeIfAbsent(sym, s -> new AggregatedSentimentSnapshot(
                 s,
-                0.68,
-                342,
-                245,
-                42,
-                55,
-                "BULLISH",
-                0.86,
+                0.50,
+                0,
+                0,
+                0,
+                0,
+                "NEUTRAL",
+                0.50,
                 Instant.now()
         ));
     }
 
     public List<ScoredCatalystRecord> getBreakingCatalysts(int limit) {
-        List<ScoredCatalystRecord> catalysts = new ArrayList<>();
-        catalysts.add(new ScoredCatalystRecord(
-                "CAT-" + UUID.randomUUID().toString().substring(0, 8),
-                "NVDA",
-                "NVIDIA Secures $4.2B Sovereign AI Infrastructure Supply Agreement with Tier-1 Hyperscaler",
-                "PR Newswire",
-                "POSITIVE",
-                0.88,
-                0.94,
-                "MATERIAL_CONTRACT_AWARD",
-                "CRITICAL",
-                true,
-                Instant.now().minusSeconds(1200)
-        ));
-        catalysts.add(new ScoredCatalystRecord(
-                "CAT-" + UUID.randomUUID().toString().substring(0, 8),
-                "TSLA",
-                "Tesla Reports Q3 Automotive Margin Beat, Accelerates Full Self-Driving Robotaxi Rollout Timeline",
-                "GlobeNewswire",
-                "POSITIVE",
-                0.74,
-                0.89,
-                "EARNINGS_SURPRISE_BEAT_MISS",
-                "HIGH",
-                true,
-                Instant.now().minusSeconds(2400)
-        ));
-
-        int fetchLimit = limit > 0 ? Math.min(limit, catalysts.size()) : catalysts.size();
-        return catalysts.subList(0, fetchLimit);
+        return List.of();
     }
 
     public ScoredCatalystRecord scoreNewsHeadline(String headline, String ticker) {

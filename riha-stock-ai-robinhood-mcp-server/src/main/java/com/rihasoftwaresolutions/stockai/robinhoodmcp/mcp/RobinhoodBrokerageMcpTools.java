@@ -18,6 +18,14 @@ public class RobinhoodBrokerageMcpTools {
         this.brokerageService = brokerageService;
     }
 
+    public void setDynamicApiKey(String apiKey) {
+        this.brokerageService.setDynamicApiKey(apiKey);
+    }
+
+    public void setDynamicPrivateKey(String privateKey) {
+        this.brokerageService.setDynamicPrivateKey(privateKey);
+    }
+
     @Tool(
             name = "getLiveBuyingPowerAndPositions",
             description = "Returns real-time cash balance, unsettled funds, and open equity positions from live Robinhood brokerage account."

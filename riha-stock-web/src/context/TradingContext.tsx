@@ -13,6 +13,7 @@ interface ToastData {
 
 interface TradingContextType {
   holdings: Holding[];
+  setHoldings: React.Dispatch<React.SetStateAction<Holding[]>>;
   tradeHistory: TradeOrder[];
   trendingStocks: TrendingStock[];
   personalizedWatchlist: TrendingStock[];
@@ -469,6 +470,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     <TradingContext.Provider
       value={{
         holdings,
+        setHoldings,
         tradeHistory,
         trendingStocks,
         personalizedWatchlist,

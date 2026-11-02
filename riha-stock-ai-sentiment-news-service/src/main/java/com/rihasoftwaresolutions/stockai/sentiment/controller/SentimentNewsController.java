@@ -47,7 +47,7 @@ public class SentimentNewsController {
     @Operation(summary = "Run on-demand FinBERT sentiment scoring on a financial news headline and publish scored event to Kafka")
     public ResponseEntity<ScoredCatalystRecord> scoreHeadline(@RequestBody Map<String, String> body) {
         String headline = body.getOrDefault("headline", "");
-        String ticker = body.getOrDefault("ticker", "NVDA");
+        String ticker = body.getOrDefault("ticker", "");
         return ResponseEntity.ok(sentimentService.scoreNewsHeadline(headline, ticker));
     }
 }

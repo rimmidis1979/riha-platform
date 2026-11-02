@@ -18,6 +18,7 @@
         <module>riha-stock-ai-portfolio-risk-service</module>
         <module>riha-stock-ai-backtest-engine</module>
         <module>riha-stock-ai-sentiment-news-service</module>
+        <module>riha-stock-ai-orchestrator-service</module>
     </modules>
 </project>
 

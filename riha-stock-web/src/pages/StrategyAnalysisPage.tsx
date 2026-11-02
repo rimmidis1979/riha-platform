@@ -32,16 +32,14 @@ import {
 } from '../types/strategyDiagnostics';
 import { useTrading } from '../context/TradingContext';
 
-const POPULAR_TICKERS = ['NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMD', 'AMZN', 'GOOGL', 'META', 'PLTR', 'SMCI', 'CHOW'];
-
 export const StrategyAnalysisPage: React.FC = () => {
   const { openTradeModal } = useTrading();
 
-  const [inputTicker, setInputTicker] = useState<string>('CHOW');
-  const [activeTicker, setActiveTicker] = useState<string>('CHOW');
+  const [inputTicker, setInputTicker] = useState<string>('');
+  const [activeTicker, setActiveTicker] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'main' | StrategyCategoryType>('main');
   const [report, setReport] = useState<ComprehensiveStrategyReport | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Live Backend Poller state
@@ -52,10 +50,15 @@ export const StrategyAnalysisPage: React.FC = () => {
   const [isPollUpdating, setIsPollUpdating] = useState<boolean>(false);
 
   const runEvaluation = async (tickerToEval: string) => {
+    const cleanTicker = (tickerToEval || '').trim().toUpperCase();
+    if (!cleanTicker) {
+      setError('Please enter a valid stock ticker symbol.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const data = await StrategyEngineService.evaluateAllStrategies(tickerToEval);
+      const data = await StrategyEngineService.evaluateAllStrategies(cleanTicker);
       setReport(data);
       setActiveTicker(data.ticker);
       setLastPolledAt(new Date().toLocaleTimeString());
@@ -67,10 +70,6 @@ export const StrategyAnalysisPage: React.FC = () => {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    runEvaluation('CHOW');
-  }, []);
 
   // Continuous Backend Poller Effect for Real-Time Market Ticks
   useEffect(() => {
@@ -115,11 +114,6 @@ export const StrategyAnalysisPage: React.FC = () => {
     if (inputTicker.trim()) {
       runEvaluation(inputTicker.trim().toUpperCase());
     }
-  };
-
-  const handleTickerChipClick = (sym: string) => {
-    setInputTicker(sym);
-    runEvaluation(sym);
   };
 
   const getCategoryIcon = (category: StrategyCategoryType, className: string = 'w-4 h-4') => {
@@ -229,8 +223,8 @@ export const StrategyAnalysisPage: React.FC = () => {
         )}
       </div>
 
-      {/* Input Bar & Popular Tickers */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      {/* Input Bar */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-stretch gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -238,7 +232,7 @@ export const StrategyAnalysisPage: React.FC = () => {
               type="text"
               value={inputTicker}
               onChange={(e) => setInputTicker(e.target.value.toUpperCase())}
-              placeholder="Enter Stock Ticker Symbol (e.g. NVDA, AAPL, TSLA, MSFT)..."
+              placeholder="Enter any stock ticker symbol (e.g. any US-listed equity)..."
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-sans placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all uppercase"
             />
           </div>
@@ -260,25 +254,6 @@ export const StrategyAnalysisPage: React.FC = () => {
             )}
           </button>
         </form>
-
-        {/* Quick Ticker Chips */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
-          <span className="text-xs font-semibold text-slate-500 mr-1">Quick Select:</span>
-          {POPULAR_TICKERS.map((sym) => (
-            <button
-              key={sym}
-              type="button"
-              onClick={() => handleTickerChipClick(sym)}
-              className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
-                activeTicker === sym
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              {sym}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Error Alert (Zero-Mock Data Policy) */}
@@ -314,6 +289,26 @@ export const StrategyAnalysisPage: React.FC = () => {
           </div>
           <div className="text-[11px] text-rose-700/90 bg-white/70 p-3 rounded-xl border border-rose-200/60 leading-relaxed font-sans">
             Under RIHA&apos;s Institutional Zero-Mock Data Policy, simulated indicators and fallback mock data are strictly prohibited. The Multi-Strategy Diagnostic Engine requires active live telemetry from <code>riha-stock-ai-market-ingestor</code> (port 8091) and <code>riha-stock-ai-strategy-service</code> (port 8093).
+          </div>
+        </div>
+      )}
+
+      {/* Empty State Prompt (No hardcoded tickers) */}
+      {!report && !isLoading && !error && (
+        <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center max-w-2xl mx-auto space-y-4 my-8">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
+            <Search className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">
+              No Stock Ticker Evaluated Yet
+            </h3>
+            <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
+              Enter any US-listed stock ticker symbol above and click <strong>&quot;Analyze All Strategies&quot;</strong> to fetch real-time underneath market data, SEC filings, and Critic risk findings.
+            </p>
+          </div>
+          <div className="text-xs text-slate-400 font-mono bg-slate-50 py-2 px-4 rounded-xl inline-block border border-slate-100">
+            Adheres to 100% Zero-Mock Policy • No Hardcoded Stock Tickers • Direct Microservice Feeds
           </div>
         </div>
       )}

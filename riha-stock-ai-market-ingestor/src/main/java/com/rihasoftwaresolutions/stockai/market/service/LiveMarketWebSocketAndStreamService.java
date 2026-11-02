@@ -83,7 +83,7 @@ public class LiveMarketWebSocketAndStreamService {
     @Value("${riha.stockai.market.redis-key-prefix:riha:stockai:live:quote:}")
     private String redisKeyPrefix;
 
-    @Value("${riha.stockai.market.watchlist:NVDA,AAPL,TSLA,AMD,PLTR,SMCI,COIN,META}")
+    @Value("${riha.stockai.market.watchlist:}")
     private String configuredWatchlist;
 
     @Value("${riha.stockai.mcp-gateway-url:http://localhost:8084}")
@@ -789,15 +789,8 @@ public class LiveMarketWebSocketAndStreamService {
                     .setScale(2, RoundingMode.HALF_UP);
 
             long dayVol = regularMarketVolume > 0 ? regularMarketVolume : cumVol;
-            double borrowFee = switch (symbol) {
-                case "SMCI", "COIN", "MSTR" -> 6.45;
-                case "PLTR" -> 3.85;
-                default -> 0.95;
-            };
-            long floatSize = switch (symbol) {
-                case "SMCI", "COIN", "MSTR" -> 44_500_000L;
-                default -> 240_000_000L;
-            };
+            double borrowFee = (relVol > 2.5 && dayVol > 5_000_000L) ? 3.85 : 0.95;
+            long floatSize = regularMarketVolume > 0 ? Math.max(15_000_000L, regularMarketVolume * 12L) : 50_000_000L;
 
             String signal;
             if (lastPrice.compareTo(vwap) >= 0 && rsi14 < 73.0) {

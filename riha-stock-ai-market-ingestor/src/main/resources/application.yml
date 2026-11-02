@@ -31,7 +31,7 @@ riha:
       sec-user-agent: ${RIHA_SEC_USER_AGENT:}
       kafka-topic: riha.stockai.market.ticks.live
       redis-key-prefix: "riha:stockai:quote:"
-      watchlist: ${RIHA_MARKET_WATCHLIST:NVDA,AAPL,TSLA,AMD,PLTR,SMCI}
+      watchlist: ${RIHA_MARKET_WATCHLIST:}
     mcp-gateway-url: ${RIHA_MCP_GATEWAY_URL:http://localhost:8084}
 
 management:

@@ -1,12 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { TrendingUp, ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { StockApiClient } from '../services/stockApiClient';
+import { TrendingUp, ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { loginWithGoogle, loginWithCredentials, isLoading, error } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [googleClientReady, setGoogleClientReady] = useState(false);
+  const gsiInitializedRef = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initGoogleGsi = async () => {
+      try {
+        const clientId = await StockApiClient.getGoogleClientId();
+        if (!isMounted) return;
+
+        const renderGoogleAuth = () => {
+          const google = (window as any).google;
+          if (google?.accounts?.id && !gsiInitializedRef.current) {
+            gsiInitializedRef.current = true;
+            google.accounts.id.initialize({
+              client_id: clientId,
+              callback: async (response: any) => {
+                if (response?.credential) {
+                  setLocalError(null);
+                  await loginWithGoogle(response.credential);
+                }
+              },
+              auto_select: false,
+              cancel_on_tap_outside: true,
+            });
+
+            const btnContainer = document.getElementById('google-btn-rendered');
+            if (btnContainer && google.accounts.id.renderButton) {
+              btnContainer.innerHTML = '';
+              google.accounts.id.renderButton(btnContainer, {
+                theme: 'outline',
+                size: 'large',
+                width: 380,
+                text: 'continue_with',
+                shape: 'rectangular',
+                logo_alignment: 'left',
+              });
+            }
+            if (isMounted) setGoogleClientReady(true);
+          }
+        };
+
+        if ((window as any).google?.accounts?.id) {
+          renderGoogleAuth();
+        } else {
+          const timer = setInterval(() => {
+            if ((window as any).google?.accounts?.id) {
+              clearInterval(timer);
+              renderGoogleAuth();
+            }
+          }, 250);
+          setTimeout(() => clearInterval(timer), 6000);
+        }
+      } catch (err) {
+        console.warn('Google GSI initialization notice:', err);
+      }
+    };
+
+    initGoogleGsi();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,9 +87,69 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleGoogleClick = () => {
+  const handleGoogleClick = async () => {
     setLocalError(null);
-    loginWithGoogle();
+    try {
+      const clientId = await StockApiClient.getGoogleClientId();
+      const google = (window as any).google;
+
+      // 1. Prefer TokenClient: directly receives access_token and queries Google userinfo for real profile data
+      if (google?.accounts?.oauth2?.initTokenClient) {
+        const tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'openid email profile',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse?.access_token) {
+              try {
+                const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                });
+                if (userinfoRes.ok) {
+                  const profile = await userinfoRes.json();
+                  await loginWithGoogle(tokenResponse.access_token, {
+                    id: profile.sub,
+                    email: profile.email,
+                    name: profile.name,
+                    picture: profile.picture,
+                  });
+                  return;
+                }
+              } catch (uErr) {
+                console.warn('Google userinfo fetch notice:', uErr);
+              }
+              await loginWithGoogle(tokenResponse.access_token);
+            } else if (tokenResponse?.error) {
+              setLocalError(`Google Sign-In canceled: ${tokenResponse.error}`);
+            }
+          },
+        });
+        tokenClient.requestAccessToken();
+        return;
+      }
+
+      // 2. Fallback to initCodeClient if token client unavailable
+      if (google?.accounts?.oauth2?.initCodeClient) {
+        const client = google.accounts.oauth2.initCodeClient({
+          client_id: clientId,
+          scope: 'openid email profile',
+          ux_mode: 'popup',
+          callback: async (response: any) => {
+            if (response?.code) {
+              await loginWithGoogle(response.code);
+            } else if (response?.error) {
+              setLocalError(`Google Sign-In canceled or failed: ${response.error}`);
+            }
+          },
+        });
+        client.requestCode();
+        return;
+      }
+
+      await loginWithGoogle();
+    } catch (err: any) {
+      console.error('Google click error:', err);
+      setLocalError(err.message || 'Google authentication error');
+    }
   };
 
   return (
@@ -47,7 +173,7 @@ export const LoginPage: React.FC = () => {
           <div className="mb-6 text-center">
             <h2 className="text-xl font-bold text-slate-900">Sign in to your account</h2>
             <p className="text-xs text-slate-500 mt-1">
-              Secured via enterprise <span className="font-medium text-blue-600">riha-auth-service</span>
+              Secured via enterprise <span className="font-medium text-blue-600">riha-auth-service</span> with Google OAuth 2.0
             </p>
           </div>
 
@@ -58,8 +184,12 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {/* Primary Google Login Button */}
+          {/* Primary Google Login Section */}
           <div className="space-y-4">
+            {/* Native GSI Rendered Button if available */}
+            <div id="google-btn-rendered" className="w-full flex justify-center min-h-[44px]" />
+
+            {/* Stylized Google Action Button */}
             <button
               type="button"
               onClick={handleGoogleClick}
@@ -154,7 +284,7 @@ export const LoginPage: React.FC = () => {
           <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <div className="flex items-center gap-1.5 text-slate-600">
               <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>TLS 1.3 / OAuth 2.0</span>
+              <span>TLS 1.3 / Google OAuth 2.0</span>
             </div>
             <span>RIHA Enterprise v1.0</span>
           </div>

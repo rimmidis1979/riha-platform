@@ -4,6 +4,7 @@ import { useTrading } from '../context/TradingContext';
 import { PerformanceChart } from '../components/trading/PerformanceChart';
 import { HoldingsTable } from '../components/trading/HoldingsTable';
 import { TradeHistoryTable } from '../components/trading/TradeHistoryTable';
+import { RobinhoodMcpIntegrationCard } from '../components/account/RobinhoodMcpIntegrationCard';
 import {
   Wallet,
   TrendingUp,
@@ -39,6 +40,16 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending }) =
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
               {user?.tier || 'Professional Tier'}
             </span>
+            {user?.robinhoodConnected ? (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Robinhood MCP Linked
+              </span>
+            ) : (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                Robinhood MCP Unlinked
+              </span>
+            )}
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-1">
             {user?.name || 'Trader'}'s Account
@@ -70,6 +81,9 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending }) =
           </button>
         </div>
       </div>
+
+      {/* Robinhood MCP Gateway Integration Card (User-Level API Key) */}
+      <RobinhoodMcpIntegrationCard />
 
       {/* 4 Summary Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

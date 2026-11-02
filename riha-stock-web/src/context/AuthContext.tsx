@@ -31,7 +31,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (savedSession) {
           try {
             const parsed = JSON.parse(savedSession);
-            if (parsed && parsed.email) {
+            // Purge legacy mock data sessions from previous dev runs
+            if (
+              parsed &&
+              (parsed.email === 'trader@google.com' ||
+                parsed.email === 'google.trader@rihasoftwaresolutions.com' ||
+                parsed.name === 'Google Verified Trader' ||
+                parsed.cashBalance === 250000.0)
+            ) {
+              localStorage.removeItem('riha_user_session');
+              localStorage.removeItem('riha_auth_jwt');
+              setUser(null);
+            } else if (parsed && parsed.email) {
               setUser(parsed);
               setIsLoading(false);
               return;
@@ -81,16 +92,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   // Google OAuth Login
-  const loginWithGoogle = async (googleCredential?: string): Promise<boolean> => {
+  const loginWithGoogle = async (
+    googleCredential?: string,
+    realProfile?: { email?: string; name?: string; picture?: string; id?: string }
+  ): Promise<boolean> => {
     try {
       setIsLoading(true);
       setError(null);
 
-      let tokenToUse = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.google_${Date.now()}`;
-      let userEmail = 'user@google.com';
-      let userName = 'Google User';
-      let userPicture: string | undefined = undefined;
+      let tokenToUse = '';
+      let userEmail = realProfile?.email || '';
+      let userName = realProfile?.name || '';
+      let userPicture: string | undefined = realProfile?.picture;
+      let userId = realProfile?.id || '';
 
+      // If credential is a Google ID token (JWT format), decode profile info directly from Google's token
+      if (googleCredential && googleCredential.includes('.')) {
+        try {
+          const parts = googleCredential.split('.');
+          if (parts.length >= 2) {
+            const base64Url = parts[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(
+              atob(base64)
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+            );
+            const payload = JSON.parse(jsonPayload);
+            if (payload.email) userEmail = payload.email;
+            if (payload.name) userName = payload.name;
+            if (payload.picture) userPicture = payload.picture;
+            if (payload.sub) userId = payload.sub;
+          }
+        } catch (decodeErr) {
+          console.warn('Could not decode Google credential JWT:', decodeErr);
+        }
+      }
+
+      if (!userName && userEmail) {
+        userName = userEmail.split('@')[0];
+      }
+
+      // If backend auth-service is available, authenticate and obtain backend JWT
       if (googleCredential) {
         try {
           const res = await StockApiClient.authenticateGoogle(googleCredential);
@@ -98,26 +142,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             tokenToUse = res.token;
             if (res.email) userEmail = res.email;
             if (res.name) userName = res.name;
+            if (res.picture) userPicture = res.picture;
           }
-        } catch (backendErr) {
-          console.warn('Backend Google verification endpoint unavailable:', backendErr);
+        } catch (backendErr: any) {
+          console.warn('Backend Google verification endpoint notice (running in local mode):', backendErr);
         }
+      }
+
+      if (!tokenToUse) {
+        tokenToUse = googleCredential || `google_token_${Date.now()}`;
       }
 
       StockApiClient.setToken(tokenToUse);
       setToken(tokenToUse);
 
+      const resolvedEmail = userEmail || 'trader@riha.internal';
+      const resolvedName = userName || (userEmail ? userEmail.split('@')[0] : 'Trader');
+      const resolvedId = userId || String(Date.now());
+
       const googleUser: User = {
-        id: `usr_google_${Date.now()}`,
-        name: userName,
-        email: userEmail,
+        id: `usr_${resolvedId}`,
+        name: resolvedName,
+        email: resolvedEmail,
         avatar: userPicture,
-        tier: 'Google Verified Trader',
-        accountNumber: `RH-${Math.floor(1000 + Math.random() * 9000)}`,
-        cashBalance: 0,
-        buyingPower: 0,
-        portfolioValue: 0,
-        roles: ['ROLE_USER', 'ROLE_GOOGLE_VERIFIED'],
+        tier: 'Standard Tier',
+        accountNumber: `RH-${resolvedId.slice(-6)}`,
+        cashBalance: 0.0,
+        buyingPower: 0.0,
+        portfolioValue: 0.0,
+        roles: ['ROLE_USER'],
       };
 
       setUser(googleUser);
@@ -137,7 +190,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsLoading(true);
       setError(null);
-      let activeJwt = `eyJhbGciOiJSUzI1NiJ9.session_${Date.now()}`;
+      let activeJwt = `session_${Date.now()}`;
 
       try {
         const res = await StockApiClient.authenticateLogin(email, password);
@@ -153,11 +206,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         id: `usr_${Date.now()}`,
         name: email.split('@')[0],
         email,
-        tier: 'Individual Trader',
-        accountNumber: `RH-${Math.floor(1000 + Math.random() * 9000)}`,
-        cashBalance: 0,
-        buyingPower: 0,
-        portfolioValue: 0,
+        tier: 'Standard Tier',
+        accountNumber: `RH-${String(Date.now()).slice(-6)}`,
+        cashBalance: 0.0,
+        buyingPower: 0.0,
+        portfolioValue: 0.0,
         roles: ['ROLE_USER'],
       };
 
@@ -198,6 +251,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
+  const updateRobinhoodApiKey = async (apiKey: string, accountMask?: string): Promise<boolean> => {
+    try {
+      await StockApiClient.saveRobinhoodApiKey(apiKey);
+      const cleanKey = apiKey.trim();
+      const masked = accountMask || (cleanKey.length > 8 ? `${cleanKey.substring(0, 4)}••••${cleanKey.substring(cleanKey.length - 4)}` : 'rh_••••••••');
+
+      setUser((prev) => {
+        if (!prev) return null;
+        const updated: User = {
+          ...prev,
+          robinhoodApiKey: cleanKey,
+          robinhoodConnected: true,
+          robinhoodConnectedAt: new Date().toISOString(),
+          robinhoodAccountMask: masked,
+        };
+        localStorage.setItem('riha_user_session', JSON.stringify(updated));
+        return updated;
+      });
+      return true;
+    } catch (e) {
+      console.error('Failed to update Robinhood API key:', e);
+      return false;
+    }
+  };
+
+  const disconnectRobinhood = () => {
+    StockApiClient.disconnectRobinhood();
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated: User = {
+        ...prev,
+        robinhoodApiKey: undefined,
+        robinhoodConnected: false,
+        robinhoodConnectedAt: undefined,
+        robinhoodAccountMask: undefined,
+      };
+      localStorage.setItem('riha_user_session', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -210,6 +304,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loginWithCredentials,
         logout,
         updateCashBalance,
+        updateRobinhoodApiKey,
+        disconnectRobinhood,
       }}
     >
       {children}

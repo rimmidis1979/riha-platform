@@ -45,7 +45,7 @@ public class MarketIngestorMcpController {
             @PathVariable String toolName,
             @RequestBody(required = false) Map<String, Object> arguments) {
         Map<String, Object> args = arguments != null ? arguments : Map.of();
-        String ticker = String.valueOf(args.getOrDefault("ticker", "NVDA"));
+        String ticker = String.valueOf(args.getOrDefault("ticker", "")).trim();
 
         return switch (toolName.trim().toLowerCase(Locale.ROOT)) {
             case "fetchstocksbyalgorithm" -> {

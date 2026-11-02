@@ -29,7 +29,10 @@ export class StrategyEngineService {
     streamSource: string;
     capturedAt: string;
   }> {
-    const ticker = (tickerRaw || 'NVDA').trim().toUpperCase();
+    const ticker = (tickerRaw || '').trim().toUpperCase();
+    if (!ticker) {
+      throw new Error('Please enter a valid stock ticker symbol.');
+    }
     const res = await fetch(`${MARKET_INGESTOR_URL}/api/v1/market/quote/live/${encodeURIComponent(ticker)}`);
     if (!res.ok) {
       throw new Error(`Live quote poll failed with status ${res.status}`);
@@ -59,7 +62,10 @@ export class StrategyEngineService {
    * and no fabricated indicator fallbacks. If the live feed is unavailable, it surfaces the real 503 error.
    */
   public static async evaluateAllStrategies(tickerRaw: string): Promise<ComprehensiveStrategyReport> {
-    const ticker = (tickerRaw || 'NVDA').trim().toUpperCase();
+    const ticker = (tickerRaw || '').trim().toUpperCase();
+    if (!ticker) {
+      throw new Error('Please enter a valid stock ticker symbol.');
+    }
 
     // 1. Fetch live telemetry in parallel from existing microservices
     const [techResult, secResult, criticResult, secMemoryResult, underneathResult, regimeResult, insiderResult] =

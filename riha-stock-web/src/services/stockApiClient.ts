@@ -6,6 +6,8 @@ const AUTH_SERVICE_URL = import.meta.env.VITE_RIHA_AUTH_API_URL || (isBrowser ? 
 const STRATEGY_SERVICE_URL = import.meta.env.VITE_RIHA_STOCK_STRATEGY_API_URL || (isBrowser ? '' : 'http://localhost:8093');
 const MARKET_INGESTOR_URL = import.meta.env.VITE_RIHA_MARKET_INGESTOR_API_URL || (isBrowser ? '' : 'http://localhost:8091');
 const RAG_SERVICE_URL = import.meta.env.VITE_RIHA_RAG_API_URL || (isBrowser ? '' : 'http://localhost:8088');
+const ROBINHOOD_MCP_URL = import.meta.env.VITE_RIHA_ROBINHOOD_MCP_URL || (isBrowser ? '' : 'http://localhost:8092');
+const MCP_GATEWAY_URL = import.meta.env.VITE_RIHA_MCP_GATEWAY_URL || (isBrowser ? '' : 'http://localhost:8084');
 
 export class StockApiClient {
   private static token: string | null = localStorage.getItem('riha_auth_jwt');
@@ -24,16 +26,29 @@ export class StockApiClient {
     return this.token || localStorage.getItem('riha_auth_jwt');
   }
 
+  public static async getGoogleClientId(): Promise<string> {
+    try {
+      const res = await fetch(`${AUTH_SERVICE_URL}/auth/google/client-id`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.clientId) return data.clientId;
+      }
+    } catch (e) {
+      console.warn('Could not fetch Google client ID from backend, using fallback:', e);
+    }
+    return import.meta.env.VITE_GOOGLE_CLIENT_ID || '268261615634-7u9ebko3tcl0e3pspq5vnsvn3ju6dhk5.apps.googleusercontent.com';
+  }
+
   public static getGoogleAuthUrl(): string {
     const base = AUTH_SERVICE_URL || (isBrowser ? window.location.origin : 'http://localhost:8080');
     return `${base}/oauth2/authorization/google`;
   }
 
-  public static async authenticateGoogle(idToken: string): Promise<{ token: string; email?: string; name?: string }> {
+  public static async authenticateGoogle(tokenOrCode: string, redirectUri?: string): Promise<{ token: string; email?: string; name?: string; picture?: string }> {
     const response = await fetch(`${AUTH_SERVICE_URL}/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: idToken }),
+      body: JSON.stringify({ token: tokenOrCode, code: tokenOrCode, redirectUri }),
     });
 
     if (!response.ok) {
@@ -79,6 +94,264 @@ export class StockApiClient {
       throw new Error('Failed to load profile');
     }
     return await response.json();
+  }
+
+  public static async saveRobinhoodApiKey(apiKey: string): Promise<boolean> {
+    const rawKey = apiKey.trim();
+    let cleanKey = rawKey;
+    let privateKey = '';
+    if (rawKey.includes(':::')) {
+      const parts = rawKey.split(':::');
+      cleanKey = parts[0].trim();
+      privateKey = parts[1].trim();
+    }
+
+    if (rawKey) {
+      localStorage.setItem('riha_robinhood_api_key', rawKey);
+    } else {
+      localStorage.removeItem('riha_robinhood_api_key');
+    }
+
+    // 1. Register with riha-mcp-gateway (port 8084) for downstream routing
+    try {
+      await fetch(`${MCP_GATEWAY_URL}/api/v1/mcp-gateway/robinhood/credentials`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ apiKey: cleanKey, privateKey }),
+      });
+    } catch (e) {
+      console.warn('MCP Gateway credentials registration notice:', e);
+    }
+
+    // 2. Register with riha-stock-ai-robinhood-mcp-server (port 8092)
+    try {
+      await fetch(`${ROBINHOOD_MCP_URL}/api/v1/robinhood/credentials`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ apiKey: cleanKey, privateKey }),
+      });
+    } catch (e) {
+      console.warn('Robinhood MCP credentials notice:', e);
+    }
+
+    // 3. Persist to auth user account profile if service is reachable
+    try {
+      await fetch(`${AUTH_SERVICE_URL}/auth/profile/robinhood`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ apiKey: rawKey }),
+      });
+    } catch (e) {
+      // ignore
+    }
+    return true;
+  }
+
+  public static async testRobinhoodMcpConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    const key = localStorage.getItem('riha_robinhood_api_key') || '';
+    const headers: HeadersInit = {
+      ...this.getHeaders(),
+      ...(key ? { 'X-Robinhood-Api-Key': key } : {}),
+    };
+
+    // First test riha-mcp-gateway
+    try {
+      const gwRes = await fetch(`${MCP_GATEWAY_URL}/api/v1/mcp-gateway/servers`, { headers });
+      if (gwRes.ok) {
+        const servers = await gwRes.json();
+        const rhServer = Array.isArray(servers)
+          ? servers.find((s: any) => s.serverName === 'riha-stock-ai-robinhood-mcp-server' || s.serverName?.includes('robinhood'))
+          : null;
+        return {
+          success: true,
+          message: rhServer
+            ? `Connected to riha-mcp-gateway (Port 8084) — Robinhood MCP server status is ${rhServer.status || 'ONLINE'}`
+            : 'Connected to riha-mcp-gateway (Port 8084) with tool routing active',
+          details: rhServer || servers,
+        };
+      }
+    } catch (e) {
+      console.warn('MCP Gateway check notice:', e);
+    }
+
+    try {
+      const response = await fetch(`${ROBINHOOD_MCP_URL}/api/v1/robinhood/account`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          success: true,
+          message: 'Connected directly to Robinhood MCP Server (Port 8092)',
+          details: data,
+        };
+      }
+      const err = await response.json().catch(() => null);
+      return {
+        success: false,
+        message: err?.detail || `Robinhood MCP Server responded with status ${response.status}`,
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        message: e?.message || 'Robinhood MCP Gateway / Server is currently offline',
+      };
+    }
+  }
+
+  public static async pullRobinhoodRealTimeData(apiKey?: string): Promise<{
+    buyingPower?: number;
+    cashBalance?: number;
+    portfolioValue?: number;
+    positions?: Holding[];
+    accountNumber?: string;
+    raw?: any;
+  }> {
+    const rawKey = apiKey || localStorage.getItem('riha_robinhood_api_key') || '';
+    let cleanKey = rawKey;
+    let privateKey = '';
+    if (rawKey.includes(':::')) {
+      const parts = rawKey.split(':::');
+      cleanKey = parts[0].trim();
+      privateKey = parts[1].trim();
+    }
+    const headers: HeadersInit = {
+      ...this.getHeaders(),
+      ...(cleanKey ? { 'X-Robinhood-Api-Key': cleanKey } : {}),
+      ...(privateKey ? { 'X-Robinhood-Private-Key': privateKey } : {}),
+    };
+
+    // 1. Invoke tool via riha-mcp-gateway (port 8084)
+    try {
+      const gwRes = await fetch(`${MCP_GATEWAY_URL}/api/v1/mcp-gateway/invoke-tool`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(cleanKey ? { 'X-Robinhood-Api-Key': cleanKey } : {}),
+          ...(privateKey ? { 'X-Robinhood-Private-Key': privateKey } : {}),
+        },
+        body: JSON.stringify({
+          productId: 'RIHA_STOCK_AI',
+          toolName: 'getLiveBuyingPowerAndPositions',
+          inputPayload: {
+            apiKey: cleanKey,
+            privateKey: privateKey,
+            token: cleanKey,
+          },
+        }),
+      });
+
+      if (gwRes.ok) {
+        const gwData = await gwRes.json();
+        if (gwData.outputPayload && gwData.status !== 'ERROR') {
+          return this.mapRobinhoodTelemetry(gwData.outputPayload);
+        } else if (gwData.outputPayload?.error) {
+          let msg = String(gwData.outputPayload.error);
+          if (msg.includes('JWT verification failed') || msg.includes('401 Unauthorized')) {
+            msg = 'Robinhood Upstream Notice: 401 Unauthorized (JWT verification failed). Please ensure your Robinhood API Key or Bearer Token is valid and not expired.';
+          } else {
+            try {
+              const jsonStart = msg.indexOf('{');
+              const jsonEnd = msg.lastIndexOf('}');
+              if (jsonStart !== -1 && jsonEnd !== -1) {
+                const rawJson = msg.substring(jsonStart, jsonEnd + 1).replace(/\\"/g, '"');
+                const parsed = JSON.parse(rawJson);
+                if (parsed.detail) msg = parsed.detail;
+              }
+            } catch (_) {}
+          }
+          throw new Error(msg);
+        }
+      }
+    } catch (e: any) {
+      if (e?.message && !e.message.includes('fetch') && !e.message.includes('NetworkError')) {
+        throw e;
+      }
+      console.warn('MCP Gateway tool invocation notice:', e);
+    }
+
+    // 2. Direct Robinhood MCP server route (port 8092)
+    try {
+      const rbRes = await fetch(`${ROBINHOOD_MCP_URL}/api/v1/robinhood/account`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(cleanKey ? { 'X-Robinhood-Api-Key': cleanKey, 'Authorization': `Bearer ${cleanKey}` } : {}),
+          ...(privateKey ? { 'X-Robinhood-Private-Key': privateKey } : {}),
+        },
+      });
+
+      if (rbRes.ok) {
+        const rbData = await rbRes.json();
+        return this.mapRobinhoodTelemetry(rbData);
+      } else {
+        const errJson = await rbRes.json().catch(() => null);
+        if (errJson?.detail) {
+          throw new Error(errJson.detail);
+        }
+      }
+    } catch (e: any) {
+      if (e?.message) throw e;
+      console.warn('Robinhood MCP Server telemetry notice:', e);
+    }
+
+    throw new Error('Robinhood MCP Gateway (port 8084) and Robinhood MCP Server (port 8092) are currently unreachable.');
+  }
+
+  private static mapRobinhoodTelemetry(data: any) {
+    const buyingPower = Number(data.buyingPowerUsd ?? data.buyingPower ?? data.liveBuyingPowerUsd ?? data.cash_available_for_withdrawal ?? 0);
+    const cashBalance = Number(data.liveCashBalance ?? data.cashBalance ?? data.settledCashUsd ?? data.cash ?? 0);
+    const portfolioValue = Number(data.totalEquityUsd ?? data.portfolioValue ?? data.totalEquity ?? data.equity ?? (cashBalance + buyingPower));
+    const rawPositions = data.openPositions || data.positions || data.equityPositions || [];
+    const positions: Holding[] = Array.isArray(rawPositions)
+      ? rawPositions.map((p: any) => {
+          const shares = Number(p.quantity || p.shares || 0);
+          const currentPrice = Number(p.liveMarketPrice || p.currentPrice || p.currentLivePriceUsd || 0);
+          const avgCost = Number(p.averageCostPrice || p.averageCost || p.averageCostBasisUsd || currentPrice);
+          const equity = Number(p.marketValueUsd || p.equity || p.totalPositionValueUsd || (shares * currentPrice));
+          return {
+            symbol: String(p.ticker || p.symbol || '').toUpperCase(),
+            name: p.companyName || p.name || String(p.ticker || p.symbol || '').toUpperCase(),
+            shares,
+            avgCost,
+            currentPrice,
+            equity,
+            totalGain: Number(p.unrealizedPnlUsd || p.totalGain || 0),
+            totalGainPercent: Number(p.unrealizedPnlPct || p.totalGainPercent || 0),
+            dayGain: Number(p.dayGain || p.todayUnrealizedPnlUsd || 0),
+            dayGainPercent: Number(p.dayGainPercent || p.todayUnrealizedPnlPct || 0),
+            allocationPercent: portfolioValue > 0 ? (equity / portfolioValue) * 100 : 0,
+            sector: p.sector || (String(p.ticker || p.symbol || '').includes('-USD') ? 'Crypto' : 'Equities'),
+          };
+        })
+      : [];
+
+    return {
+      buyingPower,
+      cashBalance,
+      portfolioValue,
+      positions,
+      accountNumber: data.accountNumber || data.account_number,
+      raw: data,
+    };
+  }
+
+  public static async disconnectRobinhood(): Promise<boolean> {
+    localStorage.removeItem('riha_robinhood_api_key');
+    try {
+      await fetch(`${MCP_GATEWAY_URL}/api/v1/mcp-gateway/robinhood/credentials`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+    } catch (e) {
+      // ignore
+    }
+    try {
+      await fetch(`${ROBINHOOD_MCP_URL}/api/v1/robinhood/credentials`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+    } catch (e) {
+      // ignore
+    }
+    return true;
   }
 
   public static async getPortfolioSummary(): Promise<PortfolioSummary> {
@@ -345,26 +618,10 @@ export class StockApiClient {
         }
       }
     } catch (e) {
-      console.warn('RAG ingestion service search unavailable, using core momentum playbooks:', e);
+      console.warn('RAG ingestion service search unavailable:', e);
     }
 
-    return [
-      {
-        playbook: 'Opening Range Breakout (ORB 9:00-9:30 AM)',
-        rules: 'Price > Opening Range High (ORH) and VWAP, RVOL >= 1.5x 20-day average, target +5%, stop-loss 2%',
-        historicalWinRate: '74.2%',
-      },
-      {
-        playbook: 'SEC 8-K Catalyst & Dilution Momentum Check',
-        rules: 'Material filing in 30m window preceding momentum move, confirm zero active S-3 / ATM shelf dilution',
-        historicalWinRate: '79.5%',
-      },
-      {
-        playbook: 'VWAP Reclaim & Short-Borrow Pressure',
-        rules: 'Reclaim of VWAP line with short borrow fee > 10% and days to cover > 3, limit order entry slightly above ask',
-        historicalWinRate: '71.8%',
-      },
-    ];
+    return [];
   }
 
   public static async runMomentumPromptAnalysis(
@@ -415,7 +672,7 @@ export class StockApiClient {
     const entryPrice = action === 'BUY' ? Number((price * 1.002).toFixed(2)) : price;
     const stopLoss = Number((entryPrice * 0.98).toFixed(2));
     const targetPrice = Number((entryPrice * 1.05).toFixed(2));
-    const primaryPlaybook = ragSnippets.length > 0 ? (ragSnippets[0]?.playbook || ragSnippets[0]?.title || 'RAG Ingested Momentum Playbook') : 'RAG Ingested Momentum Playbook';
+    const primaryPlaybook = ragSnippets.length > 0 ? (ragSnippets[0]?.playbook || ragSnippets[0]?.title) : undefined;
 
     const decision: MomentumPromptDecision = {
       action,
