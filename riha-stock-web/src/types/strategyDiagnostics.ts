@@ -61,7 +61,7 @@ export interface ComprehensiveStrategyReport {
   volume: number;
   relativeVolume: number;
   marketCap: string;
-  peRatio: number;
+  peRatio?: number;
   sector: string;
   overallScore: number; // 0 to 100
   overallOutcome: 'STRONG_BUY' | 'BUY' | 'NEUTRAL' | 'AVOID';

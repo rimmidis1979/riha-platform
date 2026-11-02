@@ -16,6 +16,7 @@ import {
   DollarSign,
   TrendingDown,
   RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { StrategyEngineService } from '../services/strategyEngineService';
 import {
@@ -38,15 +39,19 @@ export const StrategyAnalysisPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'main' | StrategyCategoryType>('main');
   const [report, setReport] = useState<ComprehensiveStrategyReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const runEvaluation = async (tickerToEval: string) => {
     setIsLoading(true);
+    setError(null);
     try {
       const data = await StrategyEngineService.evaluateAllStrategies(tickerToEval);
       setReport(data);
       setActiveTicker(data.ticker);
-    } catch (err) {
+      setError(null);
+    } catch (err: any) {
       console.error('Failed to evaluate strategies:', err);
+      setError(err?.message || 'Failed to evaluate live strategies from microservices');
     } finally {
       setIsLoading(false);
     }
@@ -227,6 +232,43 @@ export const StrategyAnalysisPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Error Alert (Zero-Mock Data Policy) */}
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 text-rose-900 shadow-sm space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-rose-100 text-rose-700">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-rose-900">
+                    Live Microservice Telemetry Unavailable
+                  </h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-rose-200 text-rose-800">
+                    Zero-Mock Policy Enforced
+                  </span>
+                </div>
+                <p className="text-xs text-rose-700 mt-1 font-mono">
+                  {error}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => runEvaluation(activeTicker)}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white border border-rose-300 text-rose-800 hover:bg-rose-100/50 transition-colors shadow-sm disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Retry Live Feed</span>
+            </button>
+          </div>
+          <div className="text-[11px] text-rose-700/90 bg-white/70 p-3 rounded-xl border border-rose-200/60 leading-relaxed font-sans">
+            Under RIHA&apos;s Institutional Zero-Mock Data Policy, simulated indicators and fallback mock data are strictly prohibited. The Multi-Strategy Diagnostic Engine requires active live telemetry from <code>riha-stock-ai-market-ingestor</code> (port 8091) and <code>riha-stock-ai-strategy-service</code> (port 8093).
+          </div>
+        </div>
+      )}
+
       {/* Stock Ticker Profile Header */}
       {report && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -268,8 +310,8 @@ export const StrategyAnalysisPage: React.FC = () => {
               <span className="text-lg font-black text-slate-900">{report.relativeVolume.toFixed(2)}x</span>
             </div>
             <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
-              <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">P/E Ratio</span>
-              <span className="text-lg font-black text-slate-900">{report.peRatio.toFixed(1)}x</span>
+              <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">Market Cap</span>
+              <span className="text-lg font-black text-slate-900">{report.marketCap}</span>
             </div>
           </div>
         </div>
