@@ -29,8 +29,11 @@ public class TrendingStocksController {
     @Operation(summary = "Get trending algorithmic stocks enriched with live ownership status (isOwned and ownedQuantity)")
     public ResponseEntity<List<Map<String, Object>>> getTrendingStocks(
             @RequestParam(defaultValue = "TOP_GAINERS_DAY") String filter,
-            @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(workflowCoordinator.getTrendingStocks(filter, search));
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "25") int limit,
+            @RequestParam(required = false) Double minPrice,
+            @RequestParam(required = false) Double maxPrice) {
+        return ResponseEntity.ok(workflowCoordinator.getTrendingStocks(filter, search, limit, minPrice, maxPrice));
     }
 }
 

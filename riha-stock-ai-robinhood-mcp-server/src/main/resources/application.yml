@@ -12,10 +12,12 @@ riha:
   stockai:
     product-id: RIHA_STOCK_AI
     robinhood:
-      base-url: ${ROBINHOOD_BASE_URL:https://api.robinhood.com}
+      mcp-url: ${ROBINHOOD_MCP_URL:https://agent.robinhood.com/mcp/trading}
+      base-url: ${ROBINHOOD_BASE_URL:https://agent.robinhood.com/mcp/trading}
       client-id: ${ROBINHOOD_CLIENT_ID:}
       private-key: ${ROBINHOOD_PRIVATE_KEY:}
       session-token: ${ROBINHOOD_SESSION_TOKEN:}
+      bearer-token: ${ROBINHOOD_BEARER_TOKEN:${ROBINHOOD_ACCESS_TOKEN:${ROBINHOOD_SESSION_TOKEN:}}}
     critic-signing-secret: ${RIHA_CRITIC_SIGNING_SECRET:riha-enterprise-critic-hmac-key-2026}
     mcp-gateway-url: ${RIHA_MCP_GATEWAY_URL:http://localhost:8084}
 
@@ -24,4 +26,3 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
-

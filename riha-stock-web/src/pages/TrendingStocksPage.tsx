@@ -1,65 +1,48 @@
 import React, { useState, useMemo } from 'react';
 import { useTrading } from '../context/TradingContext';
-import { TrendingFilters, TrendingStock } from '../types/trending';
 import { TrendingFilterBar } from '../components/trending/TrendingFilterBar';
 import { TrendingStockCard } from '../components/trending/TrendingStockCard';
 import { PersonalizedWatchlist } from '../components/trending/PersonalizedWatchlist';
-import { Flame, Star, Activity, BarChart2, ShieldCheck } from 'lucide-react';
+import { Flame, Star, Activity, Sparkles, RefreshCw } from 'lucide-react';
 
 export const TrendingStocksPage: React.FC = () => {
-  const { trendingStocks, personalizedWatchlist } = useTrading();
+  const {
+    trendingStocks,
+    personalizedWatchlist,
+    filters,
+    setFilters,
+    runPromptStrategyShortlist,
+    isScanning,
+  } = useTrading();
 
   const [activeView, setActiveView] = useState<'all' | 'personalized'>('all');
 
-  const [filters, setFilters] = useState<TrendingFilters>({
-    searchQuery: '',
-    minPrice: 0,
-    maxPrice: 500,
-    sentiment: 'ALL',
-    filingType: 'ALL',
-    aiPrediction: 'ALL',
-    sector: 'ALL',
-    onlyPersonalized: false,
-  });
-
-  // Multi-attribute filtering logic
+  // Filter stocks based on base filters
   const filteredStocks = useMemo(() => {
     return trendingStocks.filter((stock) => {
-      // 1. Search Query (Ticker, company, tags, catalyst)
+      // 1. Search Query
       if (filters.searchQuery.trim()) {
         const query = filters.searchQuery.toLowerCase();
         const matchesSymbol = stock.symbol.toLowerCase().includes(query);
         const matchesName = stock.companyName.toLowerCase().includes(query);
-        const matchesHeadline = stock.recentNews.headline.toLowerCase().includes(query);
-        const matchesTags = stock.tags.some((t) => t.toLowerCase().includes(query));
+        const matchesHeadline = stock.recentNews?.headline.toLowerCase().includes(query);
+        const matchesTags = stock.tags?.some((t) => t.toLowerCase().includes(query));
         if (!matchesSymbol && !matchesName && !matchesHeadline && !matchesTags) {
           return false;
         }
       }
 
-      // 2. Stock Price Limits
+      // 2. Price Limits (Decimals considered, 0 to 1500)
       if (stock.price > filters.maxPrice || stock.price < filters.minPrice) {
         return false;
       }
 
-      // 3. News Sentiment Filter
-      if (filters.sentiment !== 'ALL' && stock.recentNews.sentiment !== filters.sentiment) {
-        return false;
-      }
-
-      // 4. SEC Filings Filter
-      if (filters.filingType !== 'ALL') {
-        if (!stock.recentFiling || stock.recentFiling.formType !== filters.filingType) {
-          return false;
-        }
-      }
-
-      // 5. AI Predictions & Score Filter
+      // 3. AI Prediction Filter
       if (filters.aiPrediction !== 'ALL' && stock.aiPrediction !== filters.aiPrediction) {
         return false;
       }
 
-      // 6. Only Personalized Filter
+      // 4. Personalized Only Filter
       if (filters.onlyPersonalized && !stock.isPersonalized) {
         return false;
       }
@@ -69,100 +52,108 @@ export const TrendingStocksPage: React.FC = () => {
   }, [trendingStocks, filters]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      {/* Trending Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl onyx-card border border-zinc-800">
+    <div className="space-y-6">
+      {/* Page Title & View Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono uppercase tracking-wider text-sky-400 font-semibold flex items-center gap-1.5">
-              <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
-              Live Market Scanner • High-Alpha Momentum
-            </span>
+            <div className="p-2 rounded-xl bg-blue-100 text-blue-600">
+              <Flame className="w-5 h-5" />
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              Market Movers &amp; Trending Stocks
+            </h1>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white mt-1">
-            Trending Stocks & Catalysts
-          </h1>
-          <p className="text-xs text-zinc-400 font-mono mt-0.5">
-            Real-time scanner filtering price limits, news catalysts, SEC regulatory filings, and AI sentiment scores.
+          <p className="text-sm text-slate-600 mt-1">
+            Real-time scanner evaluated through the 5-node agentic momentum trading prompt and SEC 30-min filing catalysts.
           </p>
         </div>
 
-        {/* View Switcher: All Trending vs My Personalized Selection */}
-        <div className="flex items-center bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800 text-xs font-mono">
+        {/* View Switcher Tabs */}
+        <div className="flex items-center p-1 bg-white border border-slate-200 rounded-xl shadow-sm self-start sm:self-auto">
           <button
-            onClick={() => {
-              setActiveView('all');
-              setFilters((prev) => ({ ...prev, onlyPersonalized: false }));
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+            onClick={() => setActiveView('all')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeView === 'all'
-                ? 'bg-zinc-800 text-white font-bold shadow-md'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            <Activity className="w-4 h-4 text-sky-400" />
-            <span>All Trending ({trendingStocks.length})</span>
+            <Activity className="w-3.5 h-3.5" />
+            <span>All Candidates ({filteredStocks.length})</span>
           </button>
 
           <button
             onClick={() => setActiveView('personalized')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeView === 'personalized'
-                ? 'bg-zinc-800 text-amber-400 font-bold shadow-md'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            <Star className="w-4 h-4 fill-amber-400" />
-            <span>Personalized Watchlist ({personalizedWatchlist.length})</span>
+            <Star className={`w-3.5 h-3.5 ${personalizedWatchlist.length > 0 ? 'fill-current' : ''}`} />
+            <span>Personalized ({personalizedWatchlist.length})</span>
           </button>
         </div>
       </div>
 
-      {activeView === 'personalized' ? (
-        <PersonalizedWatchlist onExploreMore={() => setActiveView('all')} />
-      ) : (
-        <>
-          {/* Multi-Dimensional Filter Bar */}
-          <TrendingFilterBar
-            filters={filters}
-            setFilters={setFilters}
-            totalResults={filteredStocks.length}
-          />
+      {/* Base Filter Bar */}
+      <TrendingFilterBar
+        filters={filters}
+        setFilters={setFilters}
+        totalResults={activeView === 'all' ? filteredStocks.length : personalizedWatchlist.length}
+        onRunStrategy={runPromptStrategyShortlist}
+        isScanning={isScanning}
+      />
 
-          {/* Trending Stock Cards Grid */}
-          {filteredStocks.length > 0 ? (
+      {/* Main Grid View */}
+      {activeView === 'personalized' ? (
+        <PersonalizedWatchlist />
+      ) : (
+        <div>
+          {isScanning ? (
+            <div className="py-20 text-center bg-white rounded-2xl border border-slate-200">
+              <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-900">Scanning Live Feeds &amp; RAG Playbooks</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Evaluating candidate stocks against the Momentum Trading Analyst prompt...
+              </p>
+            </div>
+          ) : filteredStocks.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredStocks.map((stock) => (
                 <TrendingStockCard key={stock.symbol} stock={stock} />
               ))}
             </div>
           ) : (
-            <div className="onyx-card rounded-2xl p-12 text-center border border-zinc-800">
-              <BarChart2 className="w-10 h-10 text-zinc-600 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-white">No Stocks Match Active Filters</h3>
-              <p className="text-xs text-zinc-400 max-w-sm mx-auto mt-1 mb-4">
-                Try widening your price limits, selecting All Sentiments, or clearing your search query.
+            <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300">
+              <Sparkles className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <h3 className="text-sm font-semibold text-slate-800">No stocks match current filter criteria</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                Try widening your price range ($0 - $1500) or reset filters to display all live movers.
               </p>
               <button
                 onClick={() =>
                   setFilters({
                     searchQuery: '',
-                    minPrice: 0,
-                    maxPrice: 500,
+                    minPrice: 0.0,
+                    maxPrice: 1500.0,
+                    limit: 25,
                     sentiment: 'ALL',
                     filingType: 'ALL',
                     aiPrediction: 'ALL',
                     sector: 'ALL',
                     onlyPersonalized: false,
+                    algorithm: 'TOP_GAINERS_DAY',
                   })
                 }
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-mono text-emerald-400 transition-colors"
+                className="mt-4 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
               >
-                Reset All Filters
+                Reset to Default (25 Stocks)
               </button>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

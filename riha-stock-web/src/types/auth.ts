@@ -3,11 +3,12 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
-  tier: 'VIP Institutional' | 'Professional' | 'Individual';
+  tier: string;
   accountNumber: string;
   cashBalance: number;
   buyingPower: number;
   portfolioValue: number;
+  roles?: string[];
 }
 
 export interface AuthState {
@@ -15,7 +16,9 @@ export interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password?: string) => Promise<boolean>;
+  error: string | null;
+  loginWithGoogle: (googleCredential?: string) => Promise<boolean>;
+  loginWithCredentials: (email: string, password?: string) => Promise<boolean>;
   logout: () => void;
   updateCashBalance: (amountDelta: number) => void;
 }

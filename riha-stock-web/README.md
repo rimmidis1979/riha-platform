@@ -64,3 +64,4 @@ docker build -t rimmidis/riha-platform:riha-stock-web-v1 .
 # Run container locally on port 80 or 5175
 docker run -d -p 5175:80 --name riha-stock-web rimmidis/riha-platform:riha-stock-web-v1
 ```
+

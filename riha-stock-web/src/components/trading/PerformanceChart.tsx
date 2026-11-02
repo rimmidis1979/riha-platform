@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useTrading } from '../../context/TradingContext';
 import { Timeframe } from '../../types/trading';
-import { TrendingUp, TrendingDown, Calendar, Award } from 'lucide-react';
+import { TrendingUp, TrendingDown, Calendar, BarChart2 } from 'lucide-react';
 
 export const PerformanceChart: React.FC = () => {
-  const { timeframe, setTimeframe, performanceData, portfolioSummary } = useTrading();
+  const { timeframe, setTimeframe, performanceData } = useTrading();
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
 
   if (performanceData.length === 0) return null;
@@ -28,15 +28,12 @@ export const PerformanceChart: React.FC = () => {
     return height - padding.bottom - ((val - minVal) / (maxVal - minVal)) * (height - padding.top - padding.bottom);
   };
 
-  // Generate SVG path for portfolio line
   const portfolioPath = performanceData
     .map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.portfolioValue)}`)
     .join(' ');
 
-  // Gradient area path
   const areaPath = `${portfolioPath} L ${getX(performanceData.length - 1)} ${height - padding.bottom} L ${getX(0)} ${height - padding.bottom} Z`;
 
-  // Benchmark path
   const benchmarkPath = performanceData
     .map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.benchmarkValue)}`)
     .join(' ');
@@ -52,40 +49,34 @@ export const PerformanceChart: React.FC = () => {
   ];
 
   return (
-    <div className="onyx-card rounded-2xl p-6 border border-zinc-800">
+    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
       {/* Chart Header & Timeframe Selection */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
-            <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Overall Portfolio Performance — {timeframe} Timeline</span>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+            <span>Overall Performance ({timeframes.find((t) => t.key === timeframe)?.label})</span>
           </div>
 
-          <div className="flex items-baseline gap-3 mt-1.5">
-            <span className="text-3xl font-extrabold tracking-tight font-mono text-white">
+          <div className="flex items-baseline gap-3 mt-1">
+            <span className="text-3xl font-extrabold font-mono text-slate-900">
               ${activePoint.portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-
-            <div
-              className={`flex items-center gap-1 text-sm font-semibold font-mono px-2.5 py-0.5 rounded-full ${
-                isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+            <span
+              className={`flex items-center text-sm font-mono font-bold px-2 py-0.5 rounded-lg ${
+                isPositive ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
               }`}
             >
-              {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              <span>
-                {isPositive ? '+' : ''}${activePoint.netGain.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({isPositive ? '+' : ''}
-                {activePoint.percentChange.toFixed(2)}%)
-              </span>
-            </div>
-
-            <span className="text-xs text-zinc-500 font-mono hidden md:inline">
-              Point: {activePoint.label}
+              {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-1" /> : <TrendingDown className="w-3.5 h-3.5 mr-1" />}
+              {isPositive ? '+' : ''}${Math.abs(activePoint.netGain).toFixed(2)} ({isPositive ? '+' : ''}
+              {activePoint.percentChange.toFixed(2)}%)
             </span>
           </div>
+          <p className="text-xs text-slate-500 font-mono mt-0.5">{activePoint.label}</p>
         </div>
 
-        {/* Timeframe Selector Buttons */}
-        <div className="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 self-start sm:self-auto">
+        {/* Timeframe Buttons: 1D, 1W, 1M, 1Y, ALL */}
+        <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
           {timeframes.map((tf) => (
             <button
               key={tf.key}
@@ -93,10 +84,10 @@ export const PerformanceChart: React.FC = () => {
                 setTimeframe(tf.key);
                 setHoveredPoint(null);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${
                 timeframe === tf.key
-                  ? 'bg-emerald-500 text-zinc-950 shadow-md font-bold'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
               }`}
             >
               {tf.key}
@@ -105,158 +96,118 @@ export const PerformanceChart: React.FC = () => {
         </div>
       </div>
 
-      {/* SVG Chart Canvas */}
-      <div className="relative w-full overflow-hidden">
+      {/* SVG Interactive Chart */}
+      <div className="relative w-full overflow-hidden pt-2">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto overflow-visible select-none"
+          className="w-full h-auto cursor-crosshair"
           onMouseLeave={() => setHoveredPoint(null)}
         >
           <defs>
-            <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-            </linearGradient>
-            <linearGradient id="lineGlow" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#34d399" />
-              <stop offset="100%" stopColor="#059669" />
+            <linearGradient id="blueAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2563EB" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
           {/* Grid lines */}
           <line
             x1={padding.left}
-            y1={getY(maxVal * 0.99)}
+            y1={getY(minVal + (maxVal - minVal) * 0.75)}
             x2={width - padding.right}
-            y2={getY(maxVal * 0.99)}
-            stroke="#27272a"
+            y2={getY(minVal + (maxVal - minVal) * 0.75)}
+            stroke="#F1F5F9"
             strokeDasharray="4 4"
-            strokeWidth="1"
           />
           <line
             x1={padding.left}
-            y1={getY((maxVal + minVal) / 2)}
+            y1={getY(minVal + (maxVal - minVal) * 0.5)}
             x2={width - padding.right}
-            y2={getY((maxVal + minVal) / 2)}
-            stroke="#27272a"
+            y2={getY(minVal + (maxVal - minVal) * 0.5)}
+            stroke="#F1F5F9"
             strokeDasharray="4 4"
-            strokeWidth="1"
           />
           <line
             x1={padding.left}
-            y1={height - padding.bottom}
+            y1={getY(minVal + (maxVal - minVal) * 0.25)}
             x2={width - padding.right}
-            y2={height - padding.bottom}
-            stroke="#3f3f46"
-            strokeWidth="1"
+            y2={getY(minVal + (maxVal - minVal) * 0.25)}
+            stroke="#F1F5F9"
+            strokeDasharray="4 4"
           />
 
-          {/* S&P 500 Benchmark Line */}
+          {/* Benchmark Line (S&P 500) */}
           <path
             d={benchmarkPath}
             fill="none"
-            stroke="#71717a"
+            stroke="#CBD5E1"
             strokeWidth="1.5"
-            strokeDasharray="5 5"
-            opacity="0.6"
+            strokeDasharray="3 3"
           />
 
-          {/* Portfolio Area Fill */}
-          <path d={areaPath} fill="url(#portfolioGradient)" />
+          {/* Area Fill */}
+          <path d={areaPath} fill="url(#blueAreaGrad)" />
 
-          {/* Portfolio Primary Line */}
+          {/* Main Portfolio Value Line */}
           <path
             d={portfolioPath}
             fill="none"
-            stroke="url(#lineGlow)"
+            stroke="#2563EB"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
-          {/* Interactive Points / Hover Targets */}
-          {performanceData.map((point, index) => {
-            const cx = getX(index);
-            const cy = getY(point.portfolioValue);
-            const isHovered = hoveredPoint === index;
+          {/* Hover Crosshair and Dot */}
+          {activePointIndex !== null && (
+            <g>
+              <line
+                x1={getX(activePointIndex)}
+                y1={padding.top}
+                x2={getX(activePointIndex)}
+                y2={height - padding.bottom}
+                stroke="#94A3B8"
+                strokeWidth="1"
+                strokeDasharray="2 2"
+              />
+              <circle
+                cx={getX(activePointIndex)}
+                cy={getY(activePoint.portfolioValue)}
+                r="5"
+                fill="#2563EB"
+                stroke="#FFFFFF"
+                strokeWidth="2.5"
+              />
+            </g>
+          )}
 
-            return (
-              <g
-                key={index}
-                className="cursor-pointer"
-                onMouseEnter={() => setHoveredPoint(index)}
-              >
-                {/* Hit area */}
-                <rect
-                  x={cx - 15}
-                  y={padding.top}
-                  width={30}
-                  height={height - padding.top - padding.bottom}
-                  fill="transparent"
-                />
-
-                {isHovered && (
-                  <>
-                    {/* Vertical guide line */}
-                    <line
-                      x1={cx}
-                      y1={padding.top}
-                      x2={cx}
-                      y2={height - padding.bottom}
-                      stroke="#10b981"
-                      strokeWidth="1"
-                      strokeDasharray="3 3"
-                    />
-
-                    {/* Outer pulse */}
-                    <circle cx={cx} cy={cy} r="8" fill="#10b981" opacity="0.3" />
-
-                    {/* Core dot */}
-                    <circle cx={cx} cy={cy} r="4.5" fill="#ffffff" stroke="#10b981" strokeWidth="2.5" />
-                  </>
-                )}
-
-                {/* X-axis labels */}
-                <text
-                  x={cx}
-                  y={height - 10}
-                  textAnchor="middle"
-                  className={`text-[10px] font-mono select-none ${
-                    isHovered ? 'fill-emerald-400 font-bold' : 'fill-zinc-500'
-                  }`}
-                >
-                  {point.label}
-                </text>
-              </g>
-            );
-          })}
+          {/* Invisible interactive hover rects */}
+          {performanceData.map((_, i) => (
+            <rect
+              key={i}
+              x={getX(i) - (width / performanceData.length) / 2}
+              y={0}
+              width={width / performanceData.length}
+              height={height}
+              fill="transparent"
+              onMouseEnter={() => setHoveredPoint(i)}
+            />
+          ))}
         </svg>
-      </div>
 
-      {/* Chart Footer: Benchmark legend & risk metrics */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-4 mt-2 border-t border-zinc-800/80 text-xs font-mono text-zinc-400">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-1 bg-emerald-400 rounded-full" />
-            <span className="text-zinc-200">Your Portfolio Strategy</span>
+        {/* Legend */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-3 h-1 bg-blue-600 rounded-full" />
+              <span>Personalized Portfolio</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 bg-slate-400 border-dashed" />
+              <span>S&amp;P 500 Benchmark</span>
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-0.5 border-t border-dashed border-zinc-400" />
-            <span>S&P 500 Index (SPY Benchmark)</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1 text-emerald-400">
-            <Award className="w-3.5 h-3.5" />
-            Alpha: <strong className="text-white">+4.2%</strong>
-          </span>
-          <span>
-            Sharpe Ratio: <strong className="text-zinc-200">2.18</strong>
-          </span>
-          <span>
-            Max Drawdown: <strong className="text-zinc-200">-3.4%</strong>
-          </span>
+          <span className="text-[11px] font-mono">Real-Time Continuous Mark-to-Market</span>
         </div>
       </div>
     </div>

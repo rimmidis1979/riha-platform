@@ -9,3 +9,4 @@ else
   pkill -f "vite.*5175" || true
   echo "No .pid file found, killed any running 5175 vite processes."
 fi
+

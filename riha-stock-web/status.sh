@@ -14,3 +14,4 @@ else
   echo "riha-stock-web is STOPPED"
   exit 1
 fi
+

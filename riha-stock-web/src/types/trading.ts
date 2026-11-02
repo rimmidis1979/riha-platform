@@ -6,16 +6,22 @@ export type Timeframe = '1D' | '1W' | '1M' | '1Y' | 'ALL';
 export interface Holding {
   symbol: string;
   name: string;
+  companyName?: string;
   shares: number;
   avgCost: number;
+  avgPrice?: number;
   currentPrice: number;
   equity: number;
   totalGain: number;
   totalGainPercent: number;
   dayGain: number;
   dayGainPercent: number;
+  totalReturn?: number;
+  totalReturnPercent?: number;
+  dayReturn?: number;
+  dayReturnPercent?: number;
   allocationPercent: number;
-  sector: string;
+  sector?: string;
 }
 
 export interface TradeOrder {
@@ -24,8 +30,10 @@ export interface TradeOrder {
   companyName: string;
   side: OrderSide;
   orderType: OrderType;
+  type?: OrderType;
   shares: number;
   executionPrice: number;
+  price?: number;
   totalValue: number;
   timestamp: string;
   status: OrderStatus;
@@ -50,4 +58,9 @@ export interface PortfolioSummary {
   allTimeGain: number;
   allTimeGainPercent: number;
   holdingsCount: number;
+  buyingPower?: number;
+  todayReturn?: number;
+  todayReturnPercent?: number;
+  totalReturn?: number;
+  totalReturnPercent?: number;
 }

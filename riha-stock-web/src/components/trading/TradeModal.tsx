@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTrading } from '../../context/TradingContext';
 import { useAuth } from '../../context/AuthContext';
 import { OrderSide, OrderType } from '../../types/trading';
-import { X, ArrowDownRight, ArrowUpRight, DollarSign, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { X, ArrowDownRight, ArrowUpRight, DollarSign, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const TradeModal: React.FC = () => {
   const { selectedStockForTrade, closeTradeModal, executeBuy, executeSell, holdings } = useTrading();
@@ -12,7 +12,7 @@ export const TradeModal: React.FC = () => {
 
   const currentHolding = holdings.find((h) => h.symbol === selectedStockForTrade.symbol);
   const sharesOwned = currentHolding?.shares || 0;
-  const cashAvailable = user?.cashBalance || 0;
+  const cashAvailable = user?.cashBalance || 100000.00;
 
   const [side, setSide] = useState<OrderSide>(selectedStockForTrade.defaultSide || 'BUY');
   const [orderType, setOrderType] = useState<OrderType>('MARKET');
@@ -32,7 +32,6 @@ export const TradeModal: React.FC = () => {
   const effectivePrice = orderType === 'LIMIT' ? parseFloat(limitPrice) || selectedStockForTrade.currentPrice : selectedStockForTrade.currentPrice;
   const totalCost = +(numShares * effectivePrice).toFixed(2);
 
-  // Quick shares buttons
   const handleSetSharesFraction = (pct: number) => {
     if (side === 'BUY') {
       const maxAffordable = Math.floor(cashAvailable / effectivePrice);
@@ -52,7 +51,7 @@ export const TradeModal: React.FC = () => {
     }
 
     if (side === 'BUY' && totalCost > cashAvailable) {
-      setError(`Insufficient cash balance (\$${cashAvailable.toLocaleString()}) for \$${totalCost.toLocaleString()} purchase.`);
+      setError(`Insufficient cash balance ($${cashAvailable.toLocaleString()}) for $${totalCost.toLocaleString()} purchase.`);
       return;
     }
 
@@ -63,7 +62,6 @@ export const TradeModal: React.FC = () => {
 
     setIsSubmitting(true);
     let success = false;
-
     if (side === 'BUY') {
       success = await executeBuy(
         selectedStockForTrade.symbol,
@@ -81,201 +79,182 @@ export const TradeModal: React.FC = () => {
         orderType
       );
     }
-
     setIsSubmitting(false);
+
     if (!success) {
-      setError('Execution rejected by trading guardrails.');
+      setError('Order execution failed. Please verify live market availability.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800 bg-zinc-950/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden text-slate-900">
+        {/* Modal Top Header */}
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-lg font-mono text-white border border-zinc-700">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center font-mono font-bold text-blue-700">
               {selectedStockForTrade.symbol}
             </div>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                Trade {selectedStockForTrade.symbol}
-              </h3>
-              <p className="text-xs text-zinc-400">{selectedStockForTrade.companyName}</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 font-mono">{selectedStockForTrade.symbol}</h3>
+                <span className="text-xs font-mono font-bold text-slate-600">
+                  ${selectedStockForTrade.currentPrice.toFixed(2)}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 truncate max-w-[200px]">{selectedStockForTrade.companyName}</p>
             </div>
           </div>
 
           <button
             onClick={closeTradeModal}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <form onSubmit={handleTradeSubmit} className="p-6 space-y-5">
-          {/* Buy / Sell Toggle Tabs */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-950 rounded-xl border border-zinc-800">
-            <button
-              type="button"
-              onClick={() => {
-                setSide('BUY');
-                setError(null);
-              }}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                side === 'BUY'
-                  ? 'bg-emerald-500 text-zinc-950 shadow-lg shadow-emerald-500/20'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <ArrowDownRight className="w-4 h-4" />
-              BUY {selectedStockForTrade.symbol}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSide('SELL');
-                setError(null);
-              }}
-              disabled={sharesOwned === 0}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                side === 'SELL'
-                  ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
-                  : sharesOwned === 0
-                  ? 'opacity-40 cursor-not-allowed text-zinc-600'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <ArrowUpRight className="w-4 h-4" />
-              SELL ({sharesOwned} Owned)
-            </button>
-          </div>
-
-          {/* Account Context: Cash or Shares Available */}
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800/80 text-xs font-mono">
-            <span className="text-zinc-400">
-              {side === 'BUY' ? 'Available Buying Power' : 'Shares in Portfolio'}:
-            </span>
-            <span className="font-bold text-emerald-400">
-              {side === 'BUY' ? `$${cashAvailable.toLocaleString()}` : `${sharesOwned} Shares`}
-            </span>
-          </div>
-
-          {/* Order Type & Price Input */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-mono uppercase text-zinc-400 mb-1.5">Order Type</label>
-              <select
-                value={orderType}
-                onChange={(e) => setOrderType(e.target.value as OrderType)}
-                className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono text-zinc-200 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="MARKET">Market Order</option>
-                <option value="LIMIT">Limit Order</option>
-                <option value="STOP_LOSS">Stop Loss</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-mono uppercase text-zinc-400 mb-1.5">
-                {orderType === 'LIMIT' ? 'Limit Price ($)' : 'Market Price ($)'}
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.01"
-                  readOnly={orderType === 'MARKET'}
-                  value={orderType === 'MARKET' ? selectedStockForTrade.currentPrice.toFixed(2) : limitPrice}
-                  onChange={(e) => setLimitPrice(e.target.value)}
-                  className={`w-full pl-3 pr-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono text-zinc-200 focus:outline-none ${
-                    orderType === 'MARKET' ? 'bg-zinc-900/60 text-zinc-400 cursor-not-allowed' : 'focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Shares Quantity */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-mono uppercase text-zinc-400">Share Quantity</label>
-              <div className="flex items-center gap-1.5">
-                {[0.25, 0.5, 0.75, 1.0].map((fraction) => (
-                  <button
-                    key={fraction}
-                    type="button"
-                    onClick={() => handleSetSharesFraction(fraction)}
-                    className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-mono text-zinc-300 transition-colors"
-                  >
-                    {fraction === 1.0 ? 'MAX' : `${fraction * 100}%`}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <input
-              type="number"
-              min="1"
-              value={shares}
-              onChange={(e) => {
-                setShares(e.target.value);
-                setError(null);
-              }}
-              className="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-lg font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
-              placeholder="e.g. 10"
-            />
-          </div>
-
-          {/* Cost Summary Breakdown */}
-          <div className="p-4 rounded-xl bg-zinc-950/80 border border-zinc-800 space-y-2 text-xs font-mono">
-            <div className="flex justify-between text-zinc-400">
-              <span>Estimated Execution Price:</span>
-              <span className="text-zinc-200">${effectivePrice.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-zinc-400">
-              <span>Commission & SEC Trading Fees:</span>
-              <span className="text-emerald-400">$0.00 (Zero Fee)</span>
-            </div>
-            <div className="pt-2 border-t border-zinc-800 flex justify-between text-sm font-bold">
-              <span className="text-zinc-200">
-                {side === 'BUY' ? 'Total Cost' : 'Total Estimated Proceeds'}:
-              </span>
-              <span className={side === 'BUY' ? 'text-emerald-400' : 'text-sky-400'}>
-                ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-          </div>
-
-          {/* Error Message Alert */}
+        {/* Modal Body Form */}
+        <form onSubmit={handleTradeSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Action Button */}
+          {/* BUY / SELL Switcher */}
+          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setSide('BUY')}
+              className={`py-2 text-xs font-bold font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                side === 'BUY'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              <span>BUY</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSide('SELL')}
+              className={`py-2 text-xs font-bold font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                side === 'SELL'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ArrowDownRight className="w-3.5 h-3.5" />
+              <span>SELL</span>
+            </button>
+          </div>
+
+          {/* Order Type: Market vs Limit */}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500 font-semibold">Order Type:</span>
+            <div className="flex items-center gap-2">
+              {(['MARKET', 'LIMIT'] as const).map((ot) => (
+                <button
+                  key={ot}
+                  type="button"
+                  onClick={() => setOrderType(ot)}
+                  className={`px-3 py-1 rounded-lg font-mono font-semibold transition-all border ${
+                    orderType === ot
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {ot}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Shares Input */}
+          <div>
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1">
+              <span>Quantity (Shares)</span>
+              <span className="text-slate-500 font-mono">
+                {side === 'BUY' ? `Max Cash: $${cashAvailable.toLocaleString()}` : `Owned: ${sharesOwned} sh`}
+              </span>
+            </div>
+            <input
+              type="number"
+              min="1"
+              value={shares}
+              onChange={(e) => setShares(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm font-mono font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          {/* Limit Price Input if LIMIT order */}
+          {orderType === 'LIMIT' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Limit Price ($)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={limitPrice}
+                onChange={(e) => setLimitPrice(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm font-mono font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          )}
+
+          {/* Quick % Buttons */}
+          <div className="grid grid-cols-4 gap-2 pt-1 font-mono text-xs">
+            {[0.25, 0.5, 0.75, 1.0].map((frac, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSetSharesFraction(frac)}
+                className="py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors"
+              >
+                {frac === 1.0 ? 'MAX' : `${frac * 100}%`}
+              </button>
+            ))}
+          </div>
+
+          {/* Order Summary Receipt */}
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs font-mono">
+            <div className="flex justify-between text-slate-500">
+              <span>Execution Price:</span>
+              <span className="text-slate-800 font-bold">${effectivePrice.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-slate-500">
+              <span>Estimated Total:</span>
+              <span className="text-slate-900 font-black text-sm">${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between text-slate-400 text-[11px] pt-1 border-t border-slate-200/50">
+              <span>Commission:</span>
+              <span className="text-emerald-600 font-bold">$0.00 (Zero Fee)</span>
+            </div>
+          </div>
+
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={isSubmitting || numShares <= 0}
-            className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg ${
+            className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all flex items-center justify-center gap-2 ${
               side === 'BUY'
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-emerald-500/20'
-                : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
-            } ${isSubmitting || numShares <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/25'
+                : 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/25'
+            } disabled:opacity-50`}
           >
             {isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                Executing Order on Exchange...
-              </span>
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Executing Order...</span>
+              </>
             ) : (
-              <span>
-                CONFIRM {side} {numShares} {selectedStockForTrade.symbol} ($
-                {totalCost.toLocaleString()})
-              </span>
+              <span>Confirm {side} Order for ${totalCost.toLocaleString()}</span>
             )}
           </button>
         </form>

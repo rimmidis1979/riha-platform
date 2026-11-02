@@ -35,7 +35,9 @@ services:
       - "8092:8092"
     environment:
       SERVER_PORT: 8092
-      ROBINHOOD_BASE_URL: ${ROBINHOOD_BASE_URL:-https://api.robinhood.com}
+      ROBINHOOD_MCP_URL: ${ROBINHOOD_MCP_URL:-https://agent.robinhood.com/mcp/trading}
+      ROBINHOOD_BASE_URL: ${ROBINHOOD_BASE_URL:-https://agent.robinhood.com/mcp/trading}
+      ROBINHOOD_BEARER_TOKEN: ${ROBINHOOD_BEARER_TOKEN:-}
       ROBINHOOD_CLIENT_ID: ${ROBINHOOD_CLIENT_ID:-}
       ROBINHOOD_PRIVATE_KEY: ${ROBINHOOD_PRIVATE_KEY:-}
       RIHA_CRITIC_SIGNING_SECRET: ${RIHA_CRITIC_SIGNING_SECRET:-riha-enterprise-critic-hmac-key-2026}

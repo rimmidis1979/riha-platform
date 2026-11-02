@@ -108,11 +108,24 @@ public class StockAgenticWorkflowCoordinator {
             String algorithmFilter,
             String signalFilter,
             String searchFilter) {
+        return getEnrichedStocksList(dateStr, algorithmFilter, signalFilter, searchFilter, 25, null, null);
+    }
+
+    @Transactional
+    public List<Map<String, Object>> getEnrichedStocksList(
+            String dateStr,
+            String algorithmFilter,
+            String signalFilter,
+            String searchFilter,
+            int limit,
+            Double minPrice,
+            Double maxPrice) {
         LocalDate targetDate = parseTradingDate(dateStr);
         String algoParam = (algorithmFilter == null || algorithmFilter.isBlank()) ? "ALL" : algorithmFilter.trim().toUpperCase(Locale.ROOT);
+        int fetchLimit = limit > 0 ? limit : 25;
 
         // Fetch live algorithmic movers via MCP tool fetchStocksByAlgorithm
-        List<Map<String, Object>> liveAlgoStocks = invokeFetchStocksByAlgorithm(targetDate.toString(), algoParam, 20);
+        List<Map<String, Object>> liveAlgoStocks = invokeFetchStocksByAlgorithm(targetDate.toString(), algoParam, fetchLimit);
 
         for (Map<String, Object> liveStock : liveAlgoStocks) {
             String ticker = String.valueOf(liveStock.getOrDefault("ticker", "")).trim().toUpperCase(Locale.ROOT);
@@ -164,7 +177,16 @@ public class StockAgenticWorkflowCoordinator {
                     continue;
                 }
             }
+            if (minPrice != null && tracked.getLatestLivePrice() != null && tracked.getLatestLivePrice().doubleValue() < minPrice) {
+                continue;
+            }
+            if (maxPrice != null && tracked.getLatestLivePrice() != null && tracked.getLatestLivePrice().doubleValue() > maxPrice) {
+                continue;
+            }
             result.add(toEnrichedStockRow(tracked));
+            if (result.size() >= fetchLimit) {
+                break;
+            }
         }
 
         return result;
@@ -1288,8 +1310,13 @@ public class StockAgenticWorkflowCoordinator {
     }
 
     public List<Map<String, Object>> getTrendingStocks(String filter, String search) {
+        return getTrendingStocks(filter, search, 25, null, null);
+    }
+
+    public List<Map<String, Object>> getTrendingStocks(String filter, String search, int limit, Double minPrice, Double maxPrice) {
         String algo = (filter == null || filter.isBlank() || "ALL".equalsIgnoreCase(filter)) ? "TOP_GAINERS_DAY" : filter.trim().toUpperCase(Locale.ROOT);
-        List<Map<String, Object>> list = getEnrichedStocksList(null, algo, "ALL", search);
+        int fetchLimit = limit > 0 ? limit : 25;
+        List<Map<String, Object>> list = getEnrichedStocksList(null, algo, "ALL", search, fetchLimit, minPrice, maxPrice);
         Map<String, Integer> ownedMap = getAllOwnedQuantities();
 
         for (Map<String, Object> item : list) {

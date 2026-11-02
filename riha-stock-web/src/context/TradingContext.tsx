@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Holding, TradeOrder, Timeframe, PerformanceDataPoint, PortfolioSummary, OrderType } from '../types/trading';
-import { TrendingStock } from '../types/trending';
-import { INITIAL_HOLDINGS, INITIAL_TRADE_HISTORY, INITIAL_TRENDING_STOCKS, getPerformanceData } from '../services/mockData';
+import { TrendingStock, TrendingFilters } from '../types/trending';
 import { useAuth } from './AuthContext';
 import { StockApiClient } from '../services/stockApiClient';
 
@@ -17,6 +16,8 @@ interface TradingContextType {
   tradeHistory: TradeOrder[];
   trendingStocks: TrendingStock[];
   personalizedWatchlist: TrendingStock[];
+  filters: TrendingFilters;
+  setFilters: React.Dispatch<React.SetStateAction<TrendingFilters>>;
   timeframe: Timeframe;
   setTimeframe: (tf: Timeframe) => void;
   performanceData: PerformanceDataPoint[];
@@ -27,45 +28,60 @@ interface TradingContextType {
   executeBuy: (symbol: string, companyName: string, shares: number, price: number, orderType: OrderType) => Promise<boolean>;
   executeSell: (symbol: string, companyName: string, shares: number, price: number, orderType: OrderType) => Promise<boolean>;
   togglePersonalizedStock: (symbol: string) => void;
+  fetchTrendingWithFilters: (customFilters?: Partial<TrendingFilters>) => Promise<void>;
+  runPromptStrategyShortlist: () => Promise<void>;
+  isScanning: boolean;
   toasts: ToastData[];
   dismissToast: (id: string) => void;
 }
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
 
-const HOLDINGS_STORAGE_KEY = 'riha_stock_holdings_v1';
-const HISTORY_STORAGE_KEY = 'riha_stock_history_v1';
-const WATCHLIST_STORAGE_KEY = 'riha_stock_watchlist_v1';
+const HOLDINGS_STORAGE_KEY = 'riha_stock_holdings_live';
+const HISTORY_STORAGE_KEY = 'riha_stock_history_live';
+const WATCHLIST_STORAGE_KEY = 'riha_stock_watchlist_personalized';
 
 export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, updateCashBalance } = useAuth();
+  const { user, updateCashBalance, isAuthenticated } = useAuth();
 
-  // Holdings
+  // Holdings state (empty initially, updated by real trades or live backend)
   const [holdings, setHoldings] = useState<Holding[]>(() => {
     const saved = localStorage.getItem(HOLDINGS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : INITIAL_HOLDINGS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Trade History
   const [tradeHistory, setTradeHistory] = useState<TradeOrder[]>(() => {
     const saved = localStorage.getItem(HISTORY_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : INITIAL_TRADE_HISTORY;
+    return saved ? JSON.parse(saved) : [];
   });
 
-  // Trending Stocks
-  const [trendingStocks, setTrendingStocks] = useState<TrendingStock[]>(() => {
-    const savedWatchlist = localStorage.getItem(WATCHLIST_STORAGE_KEY);
-    const watchlistSymbols: string[] = savedWatchlist ? JSON.parse(savedWatchlist) : ['NVDA', 'PLTR', 'TSLA', 'AAPL', 'MSFT'];
-    
-    return INITIAL_TRENDING_STOCKS.map((stock) => ({
-      ...stock,
-      isPersonalized: watchlistSymbols.includes(stock.symbol),
-    }));
+  // Trending Stocks (loaded dynamically from strategy-service/market-ingestor)
+  const [trendingStocks, setTrendingStocks] = useState<TrendingStock[]>([]);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+
+  // Personalized Watchlist symbols
+  const [personalizedSymbols, setPersonalizedSymbols] = useState<string[]>(() => {
+    const saved = localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Base Filters: default limit = 25, price range = 0.00 to 1500.00
+  const [filters, setFilters] = useState<TrendingFilters>({
+    searchQuery: '',
+    minPrice: 0.00,
+    maxPrice: 1500.00,
+    limit: 25,
+    sentiment: 'ALL',
+    filingType: 'ALL',
+    aiPrediction: 'ALL',
+    sector: 'ALL',
+    onlyPersonalized: false,
+    algorithm: 'TOP_GAINERS_DAY',
   });
 
   // Timeframe for performance
   const [timeframe, setTimeframe] = useState<Timeframe>('1M');
-  const [performanceData, setPerformanceData] = useState<PerformanceDataPoint[]>(() => getPerformanceData('1M'));
 
   // Trade modal state
   const [selectedStockForTrade, setSelectedStockForTrade] = useState<{
@@ -78,20 +94,19 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Toast notifications
   const [toasts, setToasts] = useState<ToastData[]>([]);
 
-  // Add toast helper
   const addToast = (type: 'success' | 'error' | 'info', title: string, message: string) => {
-    const id = `toast-${Date.now()}-${Math.random()}`;
+    const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     setToasts((prev) => [...prev, { id, type, title, message }]);
     setTimeout(() => {
-      dismissToast(id);
-    }, 5000);
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
   };
 
   const dismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Persist state changes
+  // Sync to localStorage
   useEffect(() => {
     localStorage.setItem(HOLDINGS_STORAGE_KEY, JSON.stringify(holdings));
   }, [holdings]);
@@ -100,79 +115,176 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(tradeHistory));
   }, [tradeHistory]);
 
-  // Update performance data when timeframe changes
   useEffect(() => {
-    setPerformanceData(getPerformanceData(timeframe));
-  }, [timeframe]);
+    localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(personalizedSymbols));
+  }, [personalizedSymbols]);
 
-  // Real-time market tick simulation (subtle realistic micro-fluctuations)
+  // Load backend holdings on auth
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTrendingStocks((prev) =>
-        prev.map((stock) => {
-          // 40% chance to update each tick
-          if (Math.random() > 0.4) return stock;
-          const delta = (Math.random() - 0.49) * 0.45;
-          const newPrice = Math.max(1, +(stock.price + delta).toFixed(2));
-          const newChange = +(stock.change + delta).toFixed(2);
-          const newPercent = +((newChange / (newPrice - newChange)) * 100).toFixed(2);
-          return {
-            ...stock,
-            price: newPrice,
-            change: newChange,
-            changePercent: newPercent,
-          };
-        })
-      );
+    if (isAuthenticated) {
+      StockApiClient.getHoldings().then((apiHoldings) => {
+        if (apiHoldings && apiHoldings.length > 0) {
+          const mapped: Holding[] = apiHoldings.map((h: any) => ({
+            symbol: h.symbol,
+            name: h.companyName || h.name || h.symbol,
+            shares: h.shares,
+            avgCost: h.avgPrice || h.avgCost || 0,
+            currentPrice: h.currentPrice || 0,
+            equity: h.equity || (h.shares * h.currentPrice),
+            totalGain: h.totalReturn || h.totalGain || 0,
+            totalGainPercent: h.totalReturnPercent || h.totalGainPercent || 0,
+            dayGain: h.dayReturn || h.dayGain || 0,
+            dayGainPercent: h.dayReturnPercent || h.dayGainPercent || 0,
+            allocationPercent: h.allocationPercent || 0,
+            sector: h.sector || 'Equities',
+          }));
+          setHoldings(mapped);
+        }
+      }).catch(console.warn);
+    }
+  }, [isAuthenticated]);
 
-      // Also update prices in holdings
-      setHoldings((prev) =>
-        prev.map((h) => {
-          const match = trendingStocks.find((s) => s.symbol === h.symbol);
-          if (!match) return h;
-          const currentPrice = match.price;
-          const equity = +(h.shares * currentPrice).toFixed(2);
-          const totalGain = +(equity - h.shares * h.avgCost).toFixed(2);
-          const totalGainPercent = +((totalGain / (h.shares * h.avgCost)) * 100).toFixed(2);
-          const dayGain = +(match.change * h.shares).toFixed(2);
-          const dayGainPercent = match.changePercent;
-          return {
-            ...h,
-            currentPrice,
-            equity,
-            totalGain,
-            totalGainPercent,
-            dayGain,
-            dayGainPercent,
-          };
-        })
-      );
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [trendingStocks]);
-
-  // Compute portfolio summary metrics
-  const totalEquity = holdings.reduce((sum, h) => sum + h.equity, 0);
-  const cashBalance = user?.cashBalance ?? 42850.75;
-  const totalPortfolioValue = totalEquity + cashBalance;
-  const todayGain = holdings.reduce((sum, h) => sum + h.dayGain, 0);
-  const todayGainPercent = totalEquity > 0 ? (todayGain / totalEquity) * 100 : 0;
-  const allTimeGain = holdings.reduce((sum, h) => sum + h.totalGain, 0);
-  const allTimeGainPercent = totalEquity > 0 ? (allTimeGain / (totalEquity - allTimeGain)) * 100 : 0;
-
-  const portfolioSummary: PortfolioSummary = {
-    totalEquity: +totalEquity.toFixed(2),
-    cashBalance: +cashBalance.toFixed(2),
-    totalPortfolioValue: +totalPortfolioValue.toFixed(2),
-    todayGain: +todayGain.toFixed(2),
-    todayGainPercent: +todayGainPercent.toFixed(2),
-    allTimeGain: +allTimeGain.toFixed(2),
-    allTimeGainPercent: +allTimeGainPercent.toFixed(2),
-    holdingsCount: holdings.length,
+  // Fetch trending stocks with base filters
+  const fetchTrendingWithFilters = async (customFilters?: Partial<TrendingFilters>) => {
+    const activeFilters = { ...filters, ...(customFilters || {}) };
+    setIsScanning(true);
+    try {
+      const stocks = await StockApiClient.getTrendingStocks(activeFilters);
+      const enriched = stocks.map((s) => ({
+        ...s,
+        isPersonalized: personalizedSymbols.includes(s.symbol),
+      }));
+      setTrendingStocks(enriched);
+    } catch (err: any) {
+      console.error('Failed to fetch trending stocks:', err);
+      addToast('error', 'Market Feed Error', 'Unable to retrieve live market movers from backend services.');
+    } finally {
+      setIsScanning(false);
+    }
   };
 
-  // Open & Close Trade Modal
+  // Initial fetch of 25 stocks on mount when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchTrendingWithFilters();
+    }
+  }, [isAuthenticated, filters.limit, filters.algorithm]);
+
+  // Run Momentum Trading Analyst reasoning prompt on all fetched stocks with RAG integration
+  const runPromptStrategyShortlist = async () => {
+    setIsScanning(true);
+    addToast('info', 'Running Strategy & Ingestions', 'Querying RAG momentum playbooks and applying 5-input reasoning prompt across shortlisted stocks...');
+    try {
+      const ragSnippets = await StockApiClient.queryRagPlaybooks('momentum trading vwap rvol sec catalyst');
+
+      let candidates = trendingStocks;
+      if (candidates.length === 0) {
+        candidates = await StockApiClient.getTrendingStocks(filters);
+      }
+
+      const evaluated: TrendingStock[] = await Promise.all(
+        candidates.map(async (stock) => {
+          const decision = await StockApiClient.runMomentumPromptAnalysis(stock, ragSnippets);
+          const aiPred = (decision.action === 'BUY'
+            ? (decision.confidence > 0.85 ? 'STRONG_BUY' : 'BUY')
+            : (decision.action === 'HOLD' ? 'HOLD' : 'NO_ACTION')) as any;
+          return {
+            ...stock,
+            isPersonalized: personalizedSymbols.includes(stock.symbol),
+            promptDecision: decision,
+            aiPrediction: aiPred,
+            aiConfidence: Math.round(decision.confidence * 100),
+          };
+        })
+      );
+
+      evaluated.sort((a, b) => (b.promptDecision?.confidence ?? 0) - (a.promptDecision?.confidence ?? 0));
+      setTrendingStocks(evaluated);
+      addToast('success', 'Strategy Evaluation Complete', `Shortlisted ${evaluated.length} stocks via Agentic Momentum Prompt and RAG Playbooks.`);
+    } catch (err: any) {
+      console.error('Strategy pipeline error:', err);
+      addToast('error', 'Strategy Error', 'Failed to complete prompt strategy evaluation.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Toggle stock in personalized selection
+  const togglePersonalizedStock = (symbol: string) => {
+    const upper = symbol.toUpperCase();
+    const isCurrentlyPersonalized = personalizedSymbols.includes(upper);
+    const updated = isCurrentlyPersonalized
+      ? personalizedSymbols.filter((s) => s !== upper)
+      : [...personalizedSymbols, upper];
+
+    setPersonalizedSymbols(updated);
+    setTrendingStocks((prev) =>
+      prev.map((stock) => (stock.symbol === upper ? { ...stock, isPersonalized: !isCurrentlyPersonalized } : stock))
+    );
+
+    addToast(
+      'success',
+      isCurrentlyPersonalized ? 'Removed from Selection' : 'Added to Personalized Selection',
+      `${upper} has been ${isCurrentlyPersonalized ? 'removed from' : 'pinned to'} your personalized watchlist.`
+    );
+  };
+
+  const personalizedWatchlist = trendingStocks.filter((s) => personalizedSymbols.includes(s.symbol));
+
+  // Portfolio calculations
+  const totalEquity = holdings.reduce((sum, h) => sum + h.equity, 0);
+  const cashBalance = user ? user.cashBalance : 100000.00;
+  const totalPortfolioValue = totalEquity + cashBalance;
+  const buyingPower = cashBalance * 4;
+
+  const todayGain = holdings.reduce((sum, h) => sum + h.dayGain, 0);
+  const todayGainPercent = totalPortfolioValue > 0 ? (todayGain / totalPortfolioValue) * 100 : 0;
+  const allTimeGain = holdings.reduce((sum, h) => sum + h.totalGain, 0);
+  const allTimeGainPercent = totalPortfolioValue > 0 ? (allTimeGain / (totalPortfolioValue - allTimeGain || 1)) * 100 : 0;
+
+  const portfolioSummary: PortfolioSummary = {
+    totalEquity,
+    cashBalance,
+    totalPortfolioValue,
+    todayGain,
+    todayGainPercent,
+    allTimeGain,
+    allTimeGainPercent,
+    holdingsCount: holdings.length,
+    buyingPower,
+  };
+
+  // Performance Curve Generator
+  const generateCurve = (equity: number, tf: Timeframe): PerformanceDataPoint[] => {
+    const count = tf === '1D' ? 24 : tf === '1W' ? 7 : tf === '1M' ? 30 : tf === '1Y' ? 12 : 36;
+    const baseVal = Math.max(1000, equity > 0 ? equity : 100000);
+    const drift = tf === '1D' ? 0.006 : tf === '1W' ? 0.018 : tf === '1M' ? 0.045 : 0.16;
+    const startVal = baseVal * (1 - drift);
+    const now = new Date();
+    const pts: PerformanceDataPoint[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const frac = i / (count - 1);
+      const date = new Date(now.getTime() - (count - 1 - i) * (tf === '1D' ? 3600000 : 86400000 * (tf === '1Y' ? 30 : 1)));
+      const wave = Math.sin(frac * Math.PI * 2) * (baseVal * 0.015);
+      const val = Number((startVal + (baseVal - startVal) * frac + wave).toFixed(2));
+      const spyVal = Number((val * (0.95 + frac * 0.03)).toFixed(2));
+      const label = tf === '1D' ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      pts.push({
+        timestamp: date.toISOString(),
+        label,
+        portfolioValue: val,
+        benchmarkValue: spyVal,
+        netGain: Number((val - startVal).toFixed(2)),
+        percentChange: Number((((val - startVal) / startVal) * 100).toFixed(2)),
+      });
+    }
+    return pts;
+  };
+
+  const performanceData = generateCurve(totalPortfolioValue, timeframe);
+
+  // Trade Modal Handlers
   const openTradeModal = (stock: { symbol: string; companyName: string; currentPrice: number; defaultSide?: 'BUY' | 'SELL' }) => {
     setSelectedStockForTrade(stock);
   };
@@ -189,82 +301,85 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     price: number,
     orderType: OrderType
   ): Promise<boolean> => {
-    const totalCost = +(shares * price).toFixed(2);
-
+    const totalCost = shares * price;
     if (totalCost > cashBalance) {
-      addToast('error', 'Insufficient Funds', `Required \$${totalCost.toLocaleString()} but available cash is \$${cashBalance.toLocaleString()}`);
+      addToast('error', 'Insufficient Funds', `Required: $${totalCost.toFixed(2)}, Available Cash: $${cashBalance.toFixed(2)}`);
       return false;
     }
 
-    // Deduct cash
-    updateCashBalance(-totalCost);
+    try {
+      await StockApiClient.executeTrade({
+        symbol,
+        companyName,
+        orderType,
+        side: 'BUY',
+        shares,
+        price,
+        totalValue: totalCost,
+      });
 
-    // Update holdings
-    setHoldings((prev) => {
-      const existing = prev.find((h) => h.symbol === symbol);
-      if (existing) {
-        const totalShares = existing.shares + shares;
-        const totalInvested = existing.shares * existing.avgCost + totalCost;
-        const avgCost = +(totalInvested / totalShares).toFixed(2);
-        const equity = +(totalShares * price).toFixed(2);
-        const totalGain = +(equity - totalInvested).toFixed(2);
-        const totalGainPercent = +((totalGain / totalInvested) * 100).toFixed(2);
+      const executedOrder: TradeOrder = {
+        id: `ORD-${Date.now()}-${symbol}`,
+        symbol,
+        companyName,
+        side: 'BUY',
+        orderType,
+        shares,
+        executionPrice: price,
+        totalValue: totalCost,
+        timestamp: new Date().toLocaleString('en-US', { timeZoneName: 'short' }),
+        status: 'FILLED',
+      };
 
-        return prev.map((h) =>
-          h.symbol === symbol
-            ? {
-                ...h,
-                shares: totalShares,
-                avgCost,
-                currentPrice: price,
-                equity,
-                totalGain,
-                totalGainPercent,
-              }
-            : h
-        );
-      } else {
-        const equity = totalCost;
-        const newHolding: Holding = {
-          symbol,
-          name: companyName,
-          shares,
-          avgCost: price,
-          currentPrice: price,
-          equity,
-          totalGain: 0,
-          totalGainPercent: 0,
-          dayGain: 0,
-          dayGainPercent: 0,
-          allocationPercent: 10,
-          sector: 'Equities',
-        };
-        return [...prev, newHolding];
-      }
-    });
+      setHoldings((prev) => {
+        const existingIdx = prev.findIndex((h) => h.symbol === symbol);
+        if (existingIdx >= 0) {
+          const existing = prev[existingIdx];
+          const newShares = existing.shares + shares;
+          const newAvgPrice = (existing.shares * existing.avgCost + totalCost) / newShares;
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...existing,
+            shares: newShares,
+            avgCost: newAvgPrice,
+            currentPrice: price,
+            equity: newShares * price,
+            dayGain: (price - newAvgPrice) * newShares,
+            dayGainPercent: ((price - newAvgPrice) / newAvgPrice) * 100,
+            totalGain: (price - newAvgPrice) * newShares,
+            totalGainPercent: ((price - newAvgPrice) / newAvgPrice) * 100,
+          };
+          return updated;
+        } else {
+          return [
+            ...prev,
+            {
+              symbol,
+              name: companyName,
+              shares,
+              avgCost: price,
+              currentPrice: price,
+              equity: totalCost,
+              dayGain: 0,
+              dayGainPercent: 0,
+              totalGain: 0,
+              totalGainPercent: 0,
+              allocationPercent: 0,
+              sector: 'Equities',
+            },
+          ];
+        }
+      });
 
-    // Record in history
-    const tradeOrder = await StockApiClient.executeTrade({
-      symbol,
-      companyName,
-      side: 'BUY',
-      orderType,
-      shares,
-      executionPrice: price,
-      totalValue: totalCost,
-      notes: `${orderType} order filled via RIHA Trading Engine`,
-    });
-
-    setTradeHistory((prev) => [tradeOrder, ...prev]);
-
-    addToast(
-      'success',
-      'Order Filled: BUY',
-      `Purchased ${shares} shares of ${symbol} @ \$${price.toFixed(2)} (Total: \$${totalCost.toLocaleString()})`
-    );
-
-    closeTradeModal();
-    return true;
+      setTradeHistory((prev) => [executedOrder, ...prev]);
+      updateCashBalance(-totalCost);
+      addToast('success', 'Order Executed', `Bought ${shares} shares of ${symbol} at $${price.toFixed(2)}`);
+      closeTradeModal();
+      return true;
+    } catch (err: any) {
+      addToast('error', 'Order Failed', err.message || 'Execution error');
+      return false;
+    }
   };
 
   // Execute Sell Order
@@ -275,92 +390,66 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     price: number,
     orderType: OrderType
   ): Promise<boolean> => {
-    const existing = holdings.find((h) => h.symbol === symbol);
-
-    if (!existing || existing.shares < shares) {
-      addToast('error', 'Insufficient Shares', `You own ${existing?.shares || 0} shares of ${symbol}, cannot sell ${shares}`);
+    const existingHolding = holdings.find((h) => h.symbol === symbol);
+    if (!existingHolding || existingHolding.shares < shares) {
+      addToast('error', 'Insufficient Shares', `You own ${existingHolding?.shares || 0} shares of ${symbol}.`);
       return false;
     }
 
-    const totalProceeds = +(shares * price).toFixed(2);
+    const totalProceeds = shares * price;
 
-    // Add proceeds to cash
-    updateCashBalance(totalProceeds);
+    try {
+      await StockApiClient.executeTrade({
+        symbol,
+        companyName,
+        orderType,
+        side: 'SELL',
+        shares,
+        price,
+        totalValue: totalProceeds,
+      });
 
-    // Update holdings
-    setHoldings((prev) => {
-      const current = prev.find((h) => h.symbol === symbol)!;
-      const remainingShares = current.shares - shares;
+      const executedOrder: TradeOrder = {
+        id: `ORD-${Date.now()}-${symbol}`,
+        symbol,
+        companyName,
+        side: 'SELL',
+        orderType,
+        shares,
+        executionPrice: price,
+        totalValue: totalProceeds,
+        timestamp: new Date().toLocaleString('en-US', { timeZoneName: 'short' }),
+        status: 'FILLED',
+      };
 
-      if (remainingShares <= 0) {
-        return prev.filter((h) => h.symbol !== symbol);
-      } else {
-        const equity = +(remainingShares * price).toFixed(2);
-        const totalInvested = remainingShares * current.avgCost;
-        const totalGain = +(equity - totalInvested).toFixed(2);
-        const totalGainPercent = +((totalGain / totalInvested) * 100).toFixed(2);
+      setHoldings((prev) => {
+        return prev
+          .map((h) => {
+            if (h.symbol !== symbol) return h;
+            const remainingShares = h.shares - shares;
+            if (remainingShares <= 0) return null;
+            return {
+              ...h,
+              shares: remainingShares,
+              currentPrice: price,
+              equity: remainingShares * price,
+              dayGain: (price - h.avgCost) * remainingShares,
+              totalGain: (price - h.avgCost) * remainingShares,
+            };
+          })
+          .filter((h): h is Holding => h !== null);
+      });
 
-        return prev.map((h) =>
-          h.symbol === symbol
-            ? {
-                ...h,
-                shares: remainingShares,
-                currentPrice: price,
-                equity,
-                totalGain,
-                totalGainPercent,
-              }
-            : h
-        );
-      }
-    });
-
-    // Record in history
-    const tradeOrder = await StockApiClient.executeTrade({
-      symbol,
-      companyName,
-      side: 'SELL',
-      orderType,
-      shares,
-      executionPrice: price,
-      totalValue: totalProceeds,
-      notes: `${orderType} order filled via RIHA Trading Engine`,
-    });
-
-    setTradeHistory((prev) => [tradeOrder, ...prev]);
-
-    addToast(
-      'info',
-      'Order Filled: SELL',
-      `Sold ${shares} shares of ${symbol} @ \$${price.toFixed(2)} (Proceeds: \$${totalProceeds.toLocaleString()})`
-    );
-
-    closeTradeModal();
-    return true;
+      setTradeHistory((prev) => [executedOrder, ...prev]);
+      updateCashBalance(totalProceeds);
+      addToast('success', 'Order Executed', `Sold ${shares} shares of ${symbol} at $${price.toFixed(2)}`);
+      closeTradeModal();
+      return true;
+    } catch (err: any) {
+      addToast('error', 'Order Failed', err.message || 'Execution error');
+      return false;
+    }
   };
-
-  // Toggle Personalized Watchlist Stock
-  const togglePersonalizedStock = (symbol: string) => {
-    setTrendingStocks((prev) => {
-      const updated = prev.map((stock) =>
-        stock.symbol === symbol ? { ...stock, isPersonalized: !stock.isPersonalized } : stock
-      );
-
-      const personalizedSymbols = updated.filter((s) => s.isPersonalized).map((s) => s.symbol);
-      localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(personalizedSymbols));
-
-      const target = updated.find((s) => s.symbol === symbol);
-      if (target?.isPersonalized) {
-        addToast('success', 'Watchlist Updated', `Added ${symbol} to your Personalized Selection`);
-      } else {
-        addToast('info', 'Watchlist Updated', `Removed ${symbol} from Personalized Selection`);
-      }
-
-      return updated;
-    });
-  };
-
-  const personalizedWatchlist = trendingStocks.filter((s) => s.isPersonalized);
 
   return (
     <TradingContext.Provider
@@ -369,6 +458,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         tradeHistory,
         trendingStocks,
         personalizedWatchlist,
+        filters,
+        setFilters,
         timeframe,
         setTimeframe,
         performanceData,
@@ -379,6 +470,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         executeBuy,
         executeSell,
         togglePersonalizedStock,
+        fetchTrendingWithFilters,
+        runPromptStrategyShortlist,
+        isScanning,
         toasts,
         dismissToast,
       }}
@@ -388,7 +482,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 };
 
-export const useTrading = () => {
+export const useTrading = (): TradingContextType => {
   const context = useContext(TradingContext);
   if (!context) {
     throw new Error('useTrading must be used within a TradingProvider');

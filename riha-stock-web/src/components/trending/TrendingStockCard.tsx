@@ -7,10 +7,10 @@ import {
   Star,
   PlusCircle,
   FileText,
-  Newspaper,
   BrainCircuit,
-  Users,
   Zap,
+  Target,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface TrendingStockCardProps {
@@ -20,115 +20,132 @@ interface TrendingStockCardProps {
 export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) => {
   const { togglePersonalizedStock, openTradeModal } = useTrading();
   const isPositive = stock.change >= 0;
+  const decision = stock.promptDecision;
 
   return (
-    <div className="onyx-card rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between hover:border-zinc-700 transition-all group">
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md hover:border-blue-300 transition-all group">
       <div>
-        {/* Top Header: Ticker, Name, and Manual Personalized Pin Button */}
+        {/* Top Header: Ticker, Name, Sector, and Star Toggle */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center font-mono font-bold text-white text-sm border border-zinc-700 group-hover:border-emerald-500/50 transition-colors">
+            <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center font-mono font-bold text-slate-800 text-sm border border-slate-200 group-hover:border-blue-400 group-hover:bg-blue-50 transition-colors">
               {stock.symbol}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-white text-base font-mono">{stock.symbol}</h4>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800/90 text-zinc-400 font-medium">
+                <h4 className="font-bold text-slate-900 text-base font-mono">{stock.symbol}</h4>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium border border-slate-200/60">
                   {stock.sector}
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 truncate max-w-[200px] mt-0.5">{stock.companyName}</p>
+              <p className="text-xs text-slate-500 truncate max-w-[200px] mt-0.5">{stock.companyName}</p>
             </div>
           </div>
 
-          {/* Star Button: Manual Select Trending Stock & Add to Personalized Selection */}
+          {/* Star Button: Add/Remove from Personalized Selection */}
           <button
             onClick={() => togglePersonalizedStock(stock.symbol)}
             title={stock.isPersonalized ? 'Remove from Personalized Selection' : 'Add to Personalized Selection'}
             className={`p-2 rounded-xl transition-all ${
               stock.isPersonalized
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-md shadow-amber-500/10'
-                : 'bg-zinc-900/80 text-zinc-500 border border-zinc-800 hover:text-amber-400 hover:bg-zinc-800'
+                ? 'bg-amber-50 text-amber-500 border border-amber-200 shadow-sm'
+                : 'bg-slate-50 text-slate-400 border border-slate-200 hover:text-amber-500 hover:bg-amber-50/50'
             }`}
           >
-            <Star className={`w-5 h-5 ${stock.isPersonalized ? 'fill-amber-400' : ''}`} />
+            <Star className={`w-5 h-5 ${stock.isPersonalized ? 'fill-amber-500 text-amber-500' : ''}`} />
           </button>
         </div>
 
-        {/* Price & Momentum Stats */}
-        <div className="flex items-baseline justify-between mt-4 pb-3 border-b border-zinc-800/60">
+        {/* Price & Day Change */}
+        <div className="flex items-baseline justify-between mt-4 pb-3 border-b border-slate-100">
           <div>
-            <div className="text-2xl font-black font-mono text-white">
+            <div className="text-2xl font-black font-mono text-slate-900">
               ${stock.price.toFixed(2)}
             </div>
-            <div className={`flex items-center gap-1 text-xs font-mono font-bold mt-0.5 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              <span>
-                {isPositive ? '+' : ''}${Math.abs(stock.change).toFixed(2)} ({isPositive ? '+' : ''}
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs font-mono">
+              <span
+                className={`flex items-center font-bold px-1.5 py-0.5 rounded-md ${
+                  isPositive ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                }`}
+              >
+                {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-1" /> : <TrendingDown className="w-3.5 h-3.5 mr-1" />}
+                {isPositive ? '+' : ''}
+                {stock.change.toFixed(2)} ({isPositive ? '+' : ''}
                 {stock.changePercent.toFixed(2)}%)
               </span>
             </div>
           </div>
 
-          <div className="text-right text-[11px] font-mono text-zinc-400">
-            <div>Vol: <strong className="text-zinc-200">{stock.volume}</strong></div>
-            <div>Cap: <strong className="text-zinc-200">{stock.marketCap}</strong></div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase font-mono text-slate-400">Momentum</div>
+            <div className="text-sm font-bold font-mono text-blue-600 flex items-center justify-end gap-1">
+              <Zap className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
+              <span>{stock.momentumScore}/100</span>
+            </div>
+            {stock.relativeVolume && (
+              <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                RVOL: <strong className="text-slate-800">{stock.relativeVolume.toFixed(1)}x</strong>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* AI Prediction & Social Sentiment Row */}
-        <div className="grid grid-cols-2 gap-2 my-3 text-[11px] font-mono">
-          {/* AI Score */}
-          <div className="p-2 rounded-xl bg-zinc-900/90 border border-zinc-800/80">
-            <div className="flex items-center gap-1 text-zinc-400 mb-1">
-              <BrainCircuit className="w-3.5 h-3.5 text-purple-400" />
-              <span>AI Consensus</span>
+        {/* Momentum Trading Analyst Prompt Decision Block (If Evaluated) */}
+        {decision && (
+          <div className="mt-3 p-3 rounded-xl bg-blue-50/70 border border-blue-100 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-blue-800">
+                <BrainCircuit className="w-3.5 h-3.5 text-blue-600" />
+                Prompt Decision:
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-md font-mono font-bold text-[11px] ${
+                  decision.action === 'BUY'
+                    ? 'bg-emerald-600 text-white'
+                    : decision.action === 'HOLD'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-slate-600 text-white'
+                }`}
+              >
+                {decision.action} ({Math.round(decision.confidence * 100)}%)
+              </span>
             </div>
-            <div className="font-bold text-purple-300 flex items-center justify-between">
-              <span>{stock.aiPrediction.replace('_', ' ')}</span>
-              <span className="text-[10px] text-zinc-500">{stock.aiConfidence}%</span>
+
+            <p className="text-[11px] text-slate-700 leading-snug">
+              {decision.reasoning}
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-blue-200/60 font-mono text-[11px]">
+              <div className="flex items-center gap-1 text-emerald-800 font-semibold">
+                <Target className="w-3 h-3 text-emerald-600" />
+                <span>Target: ${decision.target_price.toFixed(2)} (+5%)</span>
+              </div>
+              <div className="flex items-center gap-1 text-rose-800 font-semibold justify-end">
+                <ShieldAlert className="w-3 h-3 text-rose-600" />
+                <span>Stop: ${decision.stop_loss.toFixed(2)} (-2%)</span>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Social Sentiment */}
-          <div className="p-2 rounded-xl bg-zinc-900/90 border border-zinc-800/80">
-            <div className="flex items-center gap-1 text-zinc-400 mb-1">
-              <Users className="w-3.5 h-3.5 text-sky-400" />
-              <span>Social Buzz</span>
-            </div>
-            <div className="font-bold text-sky-300 flex items-center justify-between">
-              <span>{stock.socialSentimentScore}% Bullish</span>
-              <span className="text-[10px] text-zinc-500">{(stock.socialMentions24h / 1000).toFixed(1)}k</span>
-            </div>
-          </div>
-        </div>
-
-        {/* News Catalyst Snippet */}
-        <div className="p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800/80 mb-2">
-          <div className="flex items-center gap-1.5 text-[10px] font-mono text-sky-400 uppercase font-semibold mb-1">
-            <Newspaper className="w-3 h-3" />
-            <span>Market Catalyst • {stock.recentNews.publishedAt}</span>
-          </div>
-          <p className="text-xs text-zinc-300 font-medium line-clamp-2 leading-snug">
-            {stock.recentNews.headline}
-          </p>
-        </div>
-
-        {/* SEC Filing Snippet (if available) */}
+        {/* SEC Filing / Catalyst Tag */}
         {stock.recentFiling && (
-          <div className="p-2 rounded-xl bg-zinc-950/50 border border-zinc-800/60 mb-3 flex items-center justify-between text-[11px] font-mono">
-            <div className="flex items-center gap-1.5 text-amber-400 truncate pr-2">
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              <span className="font-bold">{stock.recentFiling.formType}:</span>
-              <span className="text-zinc-400 truncate">{stock.recentFiling.title}</span>
+          <div className="mt-3 flex items-start gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+            <FileText className="w-3.5 h-3.5 text-amber-700 flex-shrink-0 mt-0.5" />
+            <div className="leading-tight">
+              <span className="font-bold text-amber-800">SEC {stock.recentFiling.formType}: </span>
+              <span className="text-[11px] text-amber-900">{stock.recentFiling.title}</span>
             </div>
-            <span className="text-[10px] text-zinc-500 whitespace-nowrap">{stock.recentFiling.filingDate}</span>
           </div>
         )}
       </div>
 
-      {/* Action Bar: Quick Buy & Personalized Toggle */}
-      <div className="pt-3 border-t border-zinc-800/80 flex items-center gap-2">
+      {/* Action Footer: Quick Buy */}
+      <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+        <span className="text-xs text-slate-500 font-mono">
+          Vol: <strong className="text-slate-800">{stock.volume}</strong>
+        </span>
+
         <button
           onClick={() =>
             openTradeModal({
@@ -138,21 +155,10 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
               defaultSide: 'BUY',
             })
           }
-          className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs font-mono flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 transition-all hover:scale-[1.02]"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm hover:shadow transition-all"
         >
-          <Zap className="w-3.5 h-3.5 fill-current" />
-          Quick Buy ${stock.symbol}
-        </button>
-
-        <button
-          onClick={() => togglePersonalizedStock(stock.symbol)}
-          className={`py-2 px-3 rounded-xl border text-xs font-mono font-medium transition-all ${
-            stock.isPersonalized
-              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
-          }`}
-        >
-          {stock.isPersonalized ? 'Pinned' : '+ Pin'}
+          <PlusCircle className="w-4 h-4" />
+          <span>Quick Buy</span>
         </button>
       </div>
     </div>

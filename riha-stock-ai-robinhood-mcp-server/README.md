@@ -1,35 +1,60 @@
 # RIHA Stock AI Robinhood Brokerage MCP Server (`riha-stock-ai-robinhood-mcp-server`)
 
 **Model Context Protocol (MCP) Live Brokerage Gateway & Cryptographic Execution Safety Guard**
+**Upstream Integration: [Robinhood Agentic Trading MCP Server](https://agent.robinhood.com/mcp/trading)**
 
 - **Server Port**: `8092`
 - **Base Package**: `com.rihasoftwaresolutions.stockai.robinhoodmcp`
-- **Protocol**: Model Context Protocol (`@McpTool`) over HTTP & SSE
+- **Protocol**: Model Context Protocol (Streamable HTTP / SSE JSON-RPC 2.0) & REST API
+- **Upstream Target**: `https://agent.robinhood.com/mcp/trading`
 - **Security Gate**: Rejects any order missing a cryptographic Critic approval signature (`MissingCriticSignatureException`)
 
 ---
 
 ## 1. Architectural Responsibility & Capabilities
 
-`riha-stock-ai-robinhood-mcp-server` serves as the secure execution bridge between autonomous AI agents and Robinhood brokerage accounts. To prevent unhedged hallucinated trades, all execution requests require an explicit digital cryptographic signature produced exclusively by `riha-critic-engine`.
+`riha-stock-ai-robinhood-mcp-server` serves as the secure execution bridge between autonomous AI agents and Robinhood's official **Agentic Trading MCP Server** (`https://agent.robinhood.com/mcp/trading`). To prevent unhedged hallucinated trades, all execution requests require an explicit digital cryptographic signature produced exclusively by `riha-critic-engine`.
 
 ### Key Technical Capabilities:
-1. **Model Context Protocol (`@McpTool`) Execution**:
-   - `fetch_live_buying_power_and_positions`: Retrieves real-time cash balance, margin buying power, and open stock positions.
-   - `execute_trade_order`: Submits market or limit orders with mandatory stop-loss and take-profit bracket thresholds.
-2. **Cryptographic Critic Guard**:
-   - Validates that incoming trade payloads contain a valid `criticSignature` signed by the platform private key, verifying that Phase 1 SpEL guardrails and Phase 2 Semantic convergence passed.
-3. **Zero-Mock Brokerage Connectivity**:
-   - Connects directly to live brokerage interfaces. If live credentials are disconnected or invalid, immediately fails with `503 Service Unavailable` RFC 7807 `ProblemDetail`.
+1. **Model Context Protocol (MCP JSON-RPC 2.0)**:
+   - Exposes Streamable HTTP `/mcp` & `/mcp/trading` conforming to the official MCP protocol specifications (`initialize`, `tools/list`, `tools/call`).
+   - Seamlessly compatible with Claude, Cursor, RIHA Agentic Workflow Coordinator, and MCP clients.
+2. **Native Upstream Integration with `https://agent.robinhood.com/mcp/trading`**:
+   - `get_portfolio`: Queries live portfolio equity, cash buying power, unsettled funds, and open positions.
+   - `get_accounts`: Fetches active Robinhood Agentic trading account details.
+   - `place_equity_order`: Dispatches buy/sell equity limit orders directly to Robinhood Agentic account.
+   - `cancel_equity_order`: Revokes open working orders.
+   - `invokeRobinhoodMcpTool`: Generic dynamic proxy pass-through to any upstream Robinhood MCP tool.
+3. **Cryptographic Critic Guard**:
+   - Validates that incoming trade payloads contain a valid `criticSignature` signed by the platform private key (`RIHA-CRITIC-SIG-v1...`), verifying that Phase 1 SpEL guardrails and Phase 2 Semantic convergence passed.
+4. **Zero-Mock Brokerage Connectivity**:
+   - Connects directly to live brokerage interfaces. If live credentials are disconnected or invalid, immediately fails with `503 Service Unavailable` RFC 7807 `ProblemDetail`. Zero mock data policy strictly forbids fake fills or simulated balances.
 
 ---
 
-## 2. REST & MCP Tools Reference
+## 2. Model Context Protocol (MCP) & REST Endpoints Reference
+
+### MCP JSON-RPC 2.0 Streamable HTTP Endpoints
+- `POST /mcp`
+- `POST /mcp/trading`
+- `POST /api/v1/mcp`
+
+| MCP Method | Description |
+| :--- | :--- |
+| **`initialize`** | Handshake returning protocol version `2024-11-05`, server capabilities, and server info with upstream target (`https://agent.robinhood.com/mcp/trading`). |
+| **`tools/list`** | Lists all available MCP tools with JSON schema definitions. |
+| **`tools/call`** | Invokes a specified MCP tool with arguments (verifying Critic signature for trading actions). |
+
+### REST & Legacy Endpoints Reference
 
 | Tool / Endpoint | Method | Path | Description |
 | :--- | :---: | :--- | :--- |
-| **`fetch_live_buying_power_and_positions`** | `POST` | `/api/v1/robinhood/mcp/tools/fetch_live_buying_power_and_positions` | Live cash, portfolio market value, and open stock shares. |
-| **`execute_trade_order`** | `POST` | `/api/v1/robinhood/mcp/tools/execute_trade_order` | Places buy/sell orders with mandatory `criticSignature` check. |
+| **Live Account & Portfolio** | `GET` | `/api/v1/robinhood/account` | Live cash balance, buying power, unrealized/realized P&L, and open positions. |
+| **Submit Trade Order** | `POST` | `/api/v1/robinhood/orders` | Places live order on Robinhood with mandatory `criticApprovalToken`. |
+| **Cancel Open Order** | `POST` | `/api/v1/robinhood/orders/{orderId}/cancel` | Cancels an open working Robinhood order. |
+| **Order Status** | `GET` | `/api/v1/robinhood/orders/{orderId}` | Polls fill status, executed fill price, and slippage. |
+| **MCP Tool Invoke** | `POST` | `/api/v1/mcp/tools/{toolName}` | Invokes tool by name with arguments. |
+| **Robinhood MCP Proxy** | `POST` | `/api/v1/robinhood/mcp/proxy` | Direct pass-through proxy to `https://agent.robinhood.com/mcp/trading`. |
 | **Health Check** | `GET` | `/actuator/health` | Spring Boot Actuator liveness and readiness probe. |
 
 ---
@@ -38,9 +63,13 @@
 
 ```env
 SERVER_PORT=8092
-ROBINHOOD_USERNAME=your_robinhood_account
-ROBINHOOD_PASSWORD=your_robinhood_password
-ROBINHOOD_MFA_SECRET=your_robinhood_totp_secret
+ROBINHOOD_MCP_URL=https://agent.robinhood.com/mcp/trading
+ROBINHOOD_BASE_URL=https://agent.robinhood.com/mcp/trading
+ROBINHOOD_BEARER_TOKEN=your_robinhood_mcp_bearer_or_oauth_token
+ROBINHOOD_CLIENT_ID=your_robinhood_client_id
+ROBINHOOD_PRIVATE_KEY=your_robinhood_private_key
+RIHA_CRITIC_SIGNING_SECRET=riha-enterprise-critic-hmac-key-2026
+RIHA_MCP_GATEWAY_URL=http://localhost:8084
 AWS_REGION=us-east-2
 ```
 
