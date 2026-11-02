@@ -12,6 +12,46 @@ const MARKET_INGESTOR_URL = import.meta.env.VITE_RIHA_MARKET_INGESTOR_API_URL ||
 
 export class StrategyEngineService {
   /**
+   * Fast polling method to fetch lightweight real-time price & volume updates
+   * from the backend market poller (:8091) without incurring full diagnostic re-evaluations.
+   */
+  public static async pollLiveQuote(tickerRaw: string): Promise<{
+    ticker: string;
+    lastPrice: number;
+    bidPrice: number;
+    askPrice: number;
+    spreadBps: number;
+    vwap: number;
+    rsi14: number;
+    relativeVolume: number;
+    dayVolume: number;
+    strategySignal: string;
+    streamSource: string;
+    capturedAt: string;
+  }> {
+    const ticker = (tickerRaw || 'NVDA').trim().toUpperCase();
+    const res = await fetch(`${MARKET_INGESTOR_URL}/api/v1/market/quote/live/${encodeURIComponent(ticker)}`);
+    if (!res.ok) {
+      throw new Error(`Live quote poll failed with status ${res.status}`);
+    }
+    const data = await res.json();
+    return {
+      ticker: data.ticker || ticker,
+      lastPrice: Number(data.lastPrice) || 0,
+      bidPrice: Number(data.bidPrice) || 0,
+      askPrice: Number(data.askPrice) || 0,
+      spreadBps: Number(data.spreadBps) || 0,
+      vwap: Number(data.vwap) || 0,
+      rsi14: Number(data.rsi14) || 0,
+      relativeVolume: Number(data.relativeVolume) || 1,
+      dayVolume: Number(data.dayVolume) || 0,
+      strategySignal: data.strategySignal || '',
+      streamSource: data.streamSource || '',
+      capturedAt: data.capturedAt || new Date().toISOString(),
+    };
+  }
+
+  /**
    * Runs the full multi-strategy diagnostic evaluation across all categories for any given ticker
    * by querying live microservices (riha-stock-ai-market-ingestor and riha-stock-ai-strategy-service).
    *

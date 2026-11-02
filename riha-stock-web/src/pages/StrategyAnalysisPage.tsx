@@ -17,6 +17,9 @@ import {
   TrendingDown,
   RefreshCw,
   AlertTriangle,
+  Play,
+  Pause,
+  Radio,
 } from 'lucide-react';
 import { StrategyEngineService } from '../services/strategyEngineService';
 import {
@@ -29,17 +32,24 @@ import {
 } from '../types/strategyDiagnostics';
 import { useTrading } from '../context/TradingContext';
 
-const POPULAR_TICKERS = ['NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMD', 'AMZN', 'GOOGL', 'META', 'PLTR', 'SMCI'];
+const POPULAR_TICKERS = ['NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMD', 'AMZN', 'GOOGL', 'META', 'PLTR', 'SMCI', 'CHOW'];
 
 export const StrategyAnalysisPage: React.FC = () => {
   const { openTradeModal } = useTrading();
 
-  const [inputTicker, setInputTicker] = useState<string>('NVDA');
-  const [activeTicker, setActiveTicker] = useState<string>('NVDA');
+  const [inputTicker, setInputTicker] = useState<string>('CHOW');
+  const [activeTicker, setActiveTicker] = useState<string>('CHOW');
   const [activeTab, setActiveTab] = useState<'main' | StrategyCategoryType>('main');
   const [report, setReport] = useState<ComprehensiveStrategyReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Live Backend Poller state
+  const [isLivePolling, setIsLivePolling] = useState<boolean>(true);
+  const [pollIntervalMs, setPollIntervalMs] = useState<number>(3000);
+  const [lastPolledAt, setLastPolledAt] = useState<string>('');
+  const [priceFlash, setPriceFlash] = useState<'up' | 'down' | null>(null);
+  const [isPollUpdating, setIsPollUpdating] = useState<boolean>(false);
 
   const runEvaluation = async (tickerToEval: string) => {
     setIsLoading(true);
@@ -48,6 +58,7 @@ export const StrategyAnalysisPage: React.FC = () => {
       const data = await StrategyEngineService.evaluateAllStrategies(tickerToEval);
       setReport(data);
       setActiveTicker(data.ticker);
+      setLastPolledAt(new Date().toLocaleTimeString());
       setError(null);
     } catch (err: any) {
       console.error('Failed to evaluate strategies:', err);
@@ -58,8 +69,46 @@ export const StrategyAnalysisPage: React.FC = () => {
   };
 
   useEffect(() => {
-    runEvaluation('NVDA');
+    runEvaluation('CHOW');
   }, []);
+
+  // Continuous Backend Poller Effect for Real-Time Market Ticks
+  useEffect(() => {
+    if (!isLivePolling || !activeTicker || isLoading) {
+      return;
+    }
+
+    const intervalId = setInterval(async () => {
+      try {
+        setIsPollUpdating(true);
+        const tick = await StrategyEngineService.pollLiveQuote(activeTicker);
+        setReport((prev) => {
+          if (!prev) return prev;
+          if (tick.lastPrice > prev.price) {
+            setPriceFlash('up');
+            setTimeout(() => setPriceFlash(null), 800);
+          } else if (tick.lastPrice < prev.price) {
+            setPriceFlash('down');
+            setTimeout(() => setPriceFlash(null), 800);
+          }
+          return {
+            ...prev,
+            price: tick.lastPrice > 0 ? tick.lastPrice : prev.price,
+            volume: tick.dayVolume > 0 ? tick.dayVolume : prev.volume,
+            relativeVolume: tick.relativeVolume > 0 ? tick.relativeVolume : prev.relativeVolume,
+            evaluatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          };
+        });
+        setLastPolledAt(new Date().toLocaleTimeString());
+      } catch (pollErr) {
+        console.debug('Backend live poller tick note:', pollErr);
+      } finally {
+        setIsPollUpdating(false);
+      }
+    }, pollIntervalMs);
+
+    return () => clearInterval(intervalId);
+  }, [isLivePolling, activeTicker, isLoading, pollIntervalMs]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -269,49 +318,134 @@ export const StrategyAnalysisPage: React.FC = () => {
         </div>
       )}
 
-      {/* Stock Ticker Profile Header */}
+      {/* Stock Ticker Profile Header & Live Poller Bar */}
       {report && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black font-mono text-xl shadow-md shadow-blue-500/20">
-              {report.ticker.slice(0, 3)}
-            </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-                  {report.ticker}
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600">
-                  {report.sector}
-                </span>
-                <span className="text-xs text-slate-400">
-                  Evaluated at {report.evaluatedAt}
-                </span>
+        <div className="space-y-3">
+          {/* Real-Time Live Backend Poller Bar */}
+          <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-sm border border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="relative flex items-center justify-center">
+                <span className={`w-3 h-3 rounded-full ${isLivePolling ? 'bg-emerald-500 animate-ping' : 'bg-slate-500'}`} />
+                <span className={`absolute w-2 h-2 rounded-full ${isLivePolling ? 'bg-emerald-400' : 'bg-slate-400'}`} />
               </div>
-              <p className="text-sm font-medium text-slate-600 mt-0.5">{report.companyName}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold font-mono tracking-wider uppercase text-slate-200">
+                  {isLivePolling ? 'Live Backend Poller Active' : 'Backend Poller Paused'}
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                  Robinhood L1 Stream
+                </span>
+                {isPollUpdating && (
+                  <span className="text-[10px] text-emerald-400 font-mono animate-pulse">
+                    fetching tick...
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 text-[11px] font-mono">
+                <span className="px-2 text-slate-400">Rate:</span>
+                {[1000, 3000, 5000].map((rate) => (
+                  <button
+                    key={rate}
+                    onClick={() => setPollIntervalMs(rate)}
+                    className={`px-2 py-0.5 rounded ${
+                      pollIntervalMs === rate
+                        ? 'bg-blue-600 text-white font-bold'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {rate / 1000}s
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setIsLivePolling(!isLivePolling)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs transition-colors shadow-sm ${
+                  isLivePolling
+                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
+              >
+                {isLivePolling ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                <span>{isLivePolling ? 'Pause Poller' : 'Resume Poller'}</span>
+              </button>
+
+              <button
+                onClick={() => runEvaluation(activeTicker)}
+                disabled={isLoading}
+                title="Force complete multi-strategy diagnostic evaluation"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-sm disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>Re-Evaluate All</span>
+              </button>
+
+              {lastPolledAt && (
+                <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+                  Last tick: {lastPolledAt}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Core Metrics Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-6 font-mono">
-            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
-              <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">Live Price</span>
-              <span className="text-lg font-black text-slate-900">${report.price.toFixed(2)}</span>
+          {/* Profile Header */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black font-mono text-xl shadow-md shadow-blue-500/20">
+                {report.ticker.slice(0, 3)}
+              </div>
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+                    {report.ticker}
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600">
+                    {report.sector}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Evaluated at {report.evaluatedAt}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-slate-600 mt-0.5">{report.companyName}</p>
+              </div>
             </div>
-            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
-              <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">24H Change</span>
-              <span className={`text-lg font-black flex items-center gap-1 ${report.dayChangePct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {report.dayChangePct >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                {report.dayChangePct >= 0 ? '+' : ''}{report.dayChangePct.toFixed(2)}%
-              </span>
-            </div>
-            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
-              <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">Relative Volume</span>
-              <span className="text-lg font-black text-slate-900">{report.relativeVolume.toFixed(2)}x</span>
-            </div>
-            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
-              <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">Market Cap</span>
-              <span className="text-lg font-black text-slate-900">{report.marketCap}</span>
+
+            {/* Core Metrics Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-6 font-mono">
+              <div
+                className={`px-4 py-2.5 rounded-xl border transition-all duration-300 ${
+                  priceFlash === 'up'
+                    ? 'bg-emerald-100 border-emerald-400 text-emerald-950 ring-2 ring-emerald-300 scale-105'
+                    : priceFlash === 'down'
+                    ? 'bg-rose-100 border-rose-400 text-rose-950 ring-2 ring-rose-300 scale-105'
+                    : 'bg-slate-50 border-slate-200/80 text-slate-900'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">Live Price</span>
+                  {priceFlash === 'up' && <TrendingUp className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />}
+                  {priceFlash === 'down' && <TrendingDown className="w-3.5 h-3.5 text-rose-600 animate-bounce" />}
+                </div>
+                <span className="text-lg font-black block">${report.price.toFixed(2)}</span>
+              </div>
+              <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">24H Change</span>
+                <span className={`text-lg font-black flex items-center gap-1 ${report.dayChangePct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {report.dayChangePct >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  {report.dayChangePct >= 0 ? '+' : ''}{report.dayChangePct.toFixed(2)}%
+                </span>
+              </div>
+              <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">Relative Volume</span>
+                <span className="text-lg font-black text-slate-900">{report.relativeVolume.toFixed(2)}x</span>
+              </div>
+              <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] uppercase font-sans text-slate-500 font-bold block">Market Cap</span>
+                <span className="text-lg font-black text-slate-900">{report.marketCap}</span>
+              </div>
             </div>
           </div>
         </div>

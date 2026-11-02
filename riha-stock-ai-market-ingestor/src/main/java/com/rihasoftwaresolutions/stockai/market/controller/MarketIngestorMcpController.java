@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -100,6 +101,27 @@ public class MarketIngestorMcpController {
     @Operation(summary = "Get live quote and technical indicators for a ticker (fails with 503 ProblemDetail if live feed is disconnected)")
     public ResponseEntity<LiveQuoteTechnicalsSnapshot> getQuote(@PathVariable String ticker) {
         return ResponseEntity.ok(mcpTools.getLiveQuoteAndTechnicals(ticker));
+    }
+
+    @GetMapping("/market/quote/live/{ticker}")
+    @Operation(summary = "Fast real-time L1 quote poller endpoint for active web clients")
+    public ResponseEntity<Map<String, Object>> getFastLiveQuote(@PathVariable String ticker) {
+        marketStreamService.registerActivePollingTicker(ticker);
+        var snapshot = mcpTools.getLiveQuoteAndTechnicals(ticker);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("ticker", snapshot.ticker());
+        resp.put("lastPrice", snapshot.lastPrice());
+        resp.put("bidPrice", snapshot.bidPrice());
+        resp.put("askPrice", snapshot.askPrice());
+        resp.put("spreadBps", snapshot.spreadBps());
+        resp.put("vwap", snapshot.vwap());
+        resp.put("rsi14", snapshot.rsi14());
+        resp.put("relativeVolume", snapshot.relativeVolume());
+        resp.put("dayVolume", snapshot.dayVolume());
+        resp.put("strategySignal", snapshot.strategySignalDetected());
+        resp.put("streamSource", snapshot.streamSource());
+        resp.put("capturedAt", snapshot.capturedAt());
+        return ResponseEntity.ok(resp);
     }
 
     @GetMapping("/market/orderbook/{ticker}")
