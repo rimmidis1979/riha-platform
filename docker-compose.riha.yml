@@ -583,7 +583,7 @@ services:
   riha-stock-ai-web:
     image: docker.io/rimmidis/riha-platform:riha-stock-ai-web
     build:
-      context: ./stock-ai/riha-stock-ai-web
+      context: ./riha-stock-ai-web
       dockerfile: Dockerfile
     container_name: riha-stock-ai-web
     restart: unless-stopped
@@ -591,6 +591,35 @@ services:
       - "5174:80"
     depends_on:
       - riha-stock-ai-strategy-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - riha-network
+
+  # =====================================================================
+  # STOCK AI 5: riha-stock-web (Port 5175 -> 80) - Personalized Trading UI
+  # Registry: docker.io/rimmidis/riha-platform
+  # =====================================================================
+  riha-stock-web:
+    image: docker.io/rimmidis/riha-platform:riha-stock-web
+    build:
+      context: ./riha-stock-web
+      dockerfile: Dockerfile
+    container_name: riha-stock-web
+    restart: unless-stopped
+    ports:
+      - "5175:80"
+    environment:
+      - VITE_RIHA_AUTH_API_URL=http://riha-auth-service:8080
+      - VITE_RIHA_STRATEGY_API_URL=http://riha-stock-ai-strategy-service:8093
+      - VITE_RIHA_MARKET_API_URL=http://riha-stock-ai-market-ingestor:8091
+    depends_on:
+      - riha-stock-ai-strategy-service
+      - riha-auth-service
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
       interval: 10s

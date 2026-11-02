@@ -50,6 +50,7 @@ STOCK_SERVICES=(
   "riha-stock-ai-robinhood-mcp-server"
   "riha-stock-ai-strategy-service"
   "riha-stock-ai-web"
+  "riha-stock-web"
 )
 
 for svc in "${STOCK_SERVICES[@]}"; do
