@@ -28,6 +28,11 @@ export interface Holding {
   latestRecommendation?: 'BUY' | 'SELL' | 'HOLD';
   strategyConfidenceScore?: number;
   strategyDiagnosisSummary?: string;
+  targetProfitMarginPct?: number;
+  stopLossMarginPct?: number;
+  autoBuyEnabled?: boolean;
+  autoSellEnabled?: boolean;
+  maxQuantity?: number;
 }
 
 export interface TradeOrder {

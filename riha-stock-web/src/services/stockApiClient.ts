@@ -829,12 +829,25 @@ export class StockApiClient {
   public static async updateStockStrategicLoop(
     symbol: string,
     runStrategicLoop: boolean,
-    executionMode?: 'PAPERLESS' | 'ACTUAL'
+    executionMode?: 'PAPERLESS' | 'ACTUAL',
+    targetProfitMarginPct?: number,
+    stopLossMarginPct?: number,
+    autoBuyEnabled?: boolean,
+    autoSellEnabled?: boolean,
+    maxQuantity?: number
   ): Promise<any> {
     const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/stocks/${encodeURIComponent(symbol)}/strategic-loop`, {
       method: 'PUT',
       headers: this.getHeaders(),
-      body: JSON.stringify({ runStrategicLoop, executionMode }),
+      body: JSON.stringify({
+        runStrategicLoop,
+        executionMode,
+        targetProfitMarginPct,
+        stopLossMarginPct,
+        autoBuyEnabled,
+        autoSellEnabled,
+        maxQuantity,
+      }),
     });
     if (!res.ok) throw new Error(`Failed to update strategic loop for ${symbol}`);
     return await res.json();

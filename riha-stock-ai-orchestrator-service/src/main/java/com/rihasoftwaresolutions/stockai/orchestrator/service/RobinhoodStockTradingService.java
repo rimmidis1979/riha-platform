@@ -105,7 +105,12 @@ public class RobinhoodStockTradingService {
             String latestRecommendation,
             Double strategyConfidenceScore,
             String strategyDiagnosisSummary,
-            Instant lastEvaluatedAt
+            Instant lastEvaluatedAt,
+            BigDecimal targetProfitMarginPct,
+            BigDecimal stopLossMarginPct,
+            boolean autoBuyEnabled,
+            boolean autoSellEnabled,
+            BigDecimal maxQuantity
     ) {}
 
     public record RobinhoodStockQuote(
@@ -867,7 +872,22 @@ public class RobinhoodStockTradingService {
                                 ? curPrice.subtract(avgBuyPrice).divide(avgBuyPrice, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
                                 : BigDecimal.ZERO;
 
-                        var diag = strategyEngine.evaluate(symbol, curPrice, avgBuyPrice, new BigDecimal("5.00"), new BigDecimal("3.00"));
+                        StockMonitorEntity monitor = monitorRepo.findByUserIdAndSymbol(uid, symbol).orElse(null);
+                        boolean loopActive = monitor != null ? monitor.isRunStrategicLoop() : true;
+                        ExecutionMode execMode = monitor != null ? monitor.getExecutionMode() : ExecutionMode.ACTUAL;
+                        BigDecimal targetProfit = (monitor != null && monitor.getTargetProfitMarginPct() != null)
+                                ? monitor.getTargetProfitMarginPct()
+                                : new BigDecimal("5.00");
+                        BigDecimal stopLoss = (monitor != null && monitor.getStopLossMarginPct() != null)
+                                ? monitor.getStopLossMarginPct()
+                                : new BigDecimal("3.00");
+                        boolean autoBuy = monitor != null && monitor.isAutoBuyEnabled();
+                        boolean autoSell = monitor != null && monitor.isAutoSellEnabled();
+                        BigDecimal maxQty = (monitor != null && monitor.getMaxBuyQuantity() != null)
+                                ? monitor.getMaxBuyQuantity()
+                                : BigDecimal.ONE;
+
+                        var diag = strategyEngine.evaluate(symbol, curPrice, avgBuyPrice, targetProfit, stopLoss);
 
                         holdingsMap.put(symbol, new RobinhoodStockHolding(
                                 symbol,
@@ -880,12 +900,17 @@ public class RobinhoodStockTradingService {
                                 totalGainPct,
                                 quote.change().multiply(qty),
                                 quote.changePercent(),
-                                true,
-                                ExecutionMode.ACTUAL,
+                                loopActive,
+                                execMode,
                                 diag.recommendation().name(),
                                 diag.confidenceScore(),
                                 diag.detailedNotes(),
-                                Instant.now()
+                                Instant.now(),
+                                targetProfit,
+                                stopLoss,
+                                autoBuy,
+                                autoSell,
+                                maxQty
                         ));
                     }
                 }

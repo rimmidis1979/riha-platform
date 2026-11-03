@@ -3,6 +3,7 @@ import { StockApiClient } from '../../services/stockApiClient';
 import { StrategyEngineService } from '../../services/strategyEngineService';
 import { ComprehensiveStrategyReport } from '../../types/strategyDiagnostics';
 import { StrategyDiagnosticsModal } from '../trading/StrategyDiagnosticsModal';
+import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from '../trading/StrategicLoopConfigModal';
 import {
   TrendingUp,
   ArrowUpRight,
@@ -50,6 +51,11 @@ interface RobinhoodStockHolding {
   latestRecommendation: string;
   strategyConfidenceScore: number;
   strategyDiagnosisSummary: string;
+  targetProfitMarginPct?: number;
+  stopLossMarginPct?: number;
+  autoBuyEnabled?: boolean;
+  autoSellEnabled?: boolean;
+  maxQuantity?: number;
 }
 
 interface RobinhoodStockQuote {
@@ -93,6 +99,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
     symbol: string;
     companyName: string;
   } | null>(null);
+  const [selectedStockForLoopConfig, setSelectedStockForLoopConfig] = useState<StrategicLoopConfigTarget | null>(null);
   const [strategyReports, setStrategyReports] = useState<Record<string, ComprehensiveStrategyReport>>({});
   const [isEvaluatingStrategies, setIsEvaluatingStrategies] = useState<boolean>(false);
 
@@ -233,6 +240,38 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
     } catch (e: any) {
       console.error('Failed to toggle strategic loop:', e);
     }
+  };
+
+  const handleLoopConfigSaved = (updated: {
+    symbol: string;
+    runStrategicLoop: boolean;
+    targetProfitMarginPct?: number;
+    stopLossMarginPct?: number;
+    autoBuyEnabled?: boolean;
+    autoSellEnabled?: boolean;
+    maxQuantity?: number;
+    executionMode: 'PAPERLESS' | 'ACTUAL';
+  }) => {
+    setOwnedStocks((prev) =>
+      prev.map((s) =>
+        s.symbol === updated.symbol
+          ? {
+              ...s,
+              runStrategicLoop: updated.runStrategicLoop,
+              targetProfitMarginPct: updated.targetProfitMarginPct,
+              stopLossMarginPct: updated.stopLossMarginPct,
+              autoBuyEnabled: updated.autoBuyEnabled,
+              autoSellEnabled: updated.autoSellEnabled,
+              maxQuantity: updated.maxQuantity,
+              executionMode: updated.executionMode,
+            }
+          : s
+      )
+    );
+    setStatusMessage({
+      type: 'success',
+      text: `Updated strategic loop & threshold configuration for ${updated.symbol}: +${(updated.targetProfitMarginPct ?? 5).toFixed(1)}% profit target, -${(updated.stopLossMarginPct ?? 3).toFixed(1)}% stop-loss.`,
+    });
   };
 
   const openOrderModal = (symbol: string, companyName: string, price: number, side: 'BUY' | 'SELL', maxShares?: number) => {
@@ -606,23 +645,82 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                                 <ExternalLink className="w-3 h-3 text-slate-400" />
                               </button>
 
-                              {/* Strategic Loop Toggle */}
-                              <button
-                                onClick={() => handleToggleStrategicLoop(stock)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 border transition-all ${
-                                  stock.runStrategicLoop
-                                    ? 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                                }`}
-                                title={stock.runStrategicLoop ? 'Strategic loop is active' : 'Strategic loop is off'}
-                              >
-                                <Zap
-                                  className={`w-2.5 h-2.5 ${
-                                    stock.runStrategicLoop ? 'text-emerald-600 fill-emerald-500' : 'text-slate-400'
+                              {/* Strategic Loop & Thresholds Controls */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleToggleStrategicLoop(stock)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 border transition-all ${
+                                    stock.runStrategicLoop
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                      : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
                                   }`}
-                                />
-                                <span>{stock.runStrategicLoop ? 'Loop Active' : 'Loop Off'}</span>
-                              </button>
+                                  title={stock.runStrategicLoop ? 'Strategic Loop is ACTIVE. Click to pause.' : 'Strategic Loop is OFF. Click to activate.'}
+                                >
+                                  <Zap
+                                    className={`w-2.5 h-2.5 ${
+                                      stock.runStrategicLoop ? 'text-emerald-600 fill-emerald-500 animate-pulse' : 'text-slate-400'
+                                    }`}
+                                  />
+                                  <span>{stock.runStrategicLoop ? 'Loop Active' : 'Loop Off'}</span>
+                                </button>
+
+                                <button
+                                  onClick={() =>
+                                    setSelectedStockForLoopConfig({
+                                      symbol: stock.symbol,
+                                      companyName: stock.companyName,
+                                      currentPrice: stock.currentPrice,
+                                      avgCost: stock.avgCost,
+                                      shares: stock.shares,
+                                      runStrategicLoop: stock.runStrategicLoop,
+                                      executionMode: stock.executionMode,
+                                      targetProfitMarginPct: stock.targetProfitMarginPct ?? 5.0,
+                                      stopLossMarginPct: stock.stopLossMarginPct ?? 3.0,
+                                      autoBuyEnabled: stock.autoBuyEnabled ?? false,
+                                      autoSellEnabled: stock.autoSellEnabled ?? false,
+                                      maxQuantity: stock.maxQuantity ?? 1,
+                                    })
+                                  }
+                                  className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 transition-colors"
+                                  title="Configure Gain/Loss thresholds (+Profit%, -Loss%) and Auto-Trading"
+                                >
+                                  <SlidersHorizontal className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              {/* Configured Gain / Loss Pills */}
+                              <div
+                                onClick={() =>
+                                  setSelectedStockForLoopConfig({
+                                    symbol: stock.symbol,
+                                    companyName: stock.companyName,
+                                    currentPrice: stock.currentPrice,
+                                    avgCost: stock.avgCost,
+                                    shares: stock.shares,
+                                    runStrategicLoop: stock.runStrategicLoop,
+                                    executionMode: stock.executionMode,
+                                    targetProfitMarginPct: stock.targetProfitMarginPct ?? 5.0,
+                                    stopLossMarginPct: stock.stopLossMarginPct ?? 3.0,
+                                    autoBuyEnabled: stock.autoBuyEnabled ?? false,
+                                    autoSellEnabled: stock.autoSellEnabled ?? false,
+                                    maxQuantity: stock.maxQuantity ?? 1,
+                                  })
+                                }
+                                className="flex items-center gap-1 text-[9px] font-mono cursor-pointer hover:opacity-80 transition-opacity"
+                                title="Click to edit Target Profit & Stop-Loss thresholds"
+                              >
+                                <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                                  🎯 +{(stock.targetProfitMarginPct ?? 5).toFixed(1)}%
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                                  🛑 -{(stock.stopLossMarginPct ?? 3).toFixed(1)}%
+                                </span>
+                                {(stock.autoBuyEnabled || stock.autoSellEnabled) && (
+                                  <span className="px-1 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 font-bold" title="Autonomous Order Execution Active">
+                                    🤖
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
 
@@ -1036,6 +1134,14 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           setSelectedStockForStrategy(null);
           openOrderModal(stock.symbol, stock.companyName, stock.currentPrice, stock.defaultSide);
         }}
+      />
+
+      {/* STRATEGIC LOOP & GAIN/LOSS THRESHOLD CONFIGURATION MODAL */}
+      <StrategicLoopConfigModal
+        isOpen={Boolean(selectedStockForLoopConfig)}
+        target={selectedStockForLoopConfig}
+        onClose={() => setSelectedStockForLoopConfig(null)}
+        onSaved={handleLoopConfigSaved}
       />
     </div>
   );

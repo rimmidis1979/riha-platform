@@ -570,7 +570,12 @@ public class TradingOrchestratorService {
             String userId,
             String symbol,
             Boolean runStrategicLoop,
-            ExecutionMode executionMode) {
+            ExecutionMode executionMode,
+            BigDecimal targetProfitMarginPct,
+            BigDecimal stopLossMarginPct,
+            Boolean autoBuyEnabled,
+            Boolean autoSellEnabled,
+            BigDecimal maxQuantity) {
         String uid = (userId != null && !userId.isBlank()) ? userId : defaultUserId;
         String sym = symbol.trim().toUpperCase(Locale.ROOT);
         StockMonitorEntity monitor = monitorRepo.findByUserIdAndSymbol(uid, sym).orElseGet(() -> {
@@ -587,6 +592,21 @@ public class TradingOrchestratorService {
         }
         if (executionMode != null) {
             monitor.setExecutionMode(executionMode);
+        }
+        if (targetProfitMarginPct != null && targetProfitMarginPct.compareTo(BigDecimal.ZERO) > 0) {
+            monitor.setTargetProfitMarginPct(targetProfitMarginPct);
+        }
+        if (stopLossMarginPct != null && stopLossMarginPct.compareTo(BigDecimal.ZERO) > 0) {
+            monitor.setStopLossMarginPct(stopLossMarginPct);
+        }
+        if (autoBuyEnabled != null) {
+            monitor.setAutoBuyEnabled(autoBuyEnabled);
+        }
+        if (autoSellEnabled != null) {
+            monitor.setAutoSellEnabled(autoSellEnabled);
+        }
+        if (maxQuantity != null && maxQuantity.compareTo(BigDecimal.ZERO) > 0) {
+            monitor.setMaxBuyQuantity(maxQuantity);
         }
 
         var diag = strategyEngine.evaluate(

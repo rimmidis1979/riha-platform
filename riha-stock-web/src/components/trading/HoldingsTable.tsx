@@ -12,10 +12,12 @@ import {
   Activity,
   Bot,
   Sliders,
+  SlidersHorizontal,
   Landmark,
   ExternalLink,
 } from 'lucide-react';
 import { StrategyDiagnosticsModal } from './StrategyDiagnosticsModal';
+import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from './StrategicLoopConfigModal';
 
 interface HoldingsTableProps {
   onExploreTrending?: () => void;
@@ -34,8 +36,21 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
     symbol: string;
     companyName: string;
   } | null>(null);
+  const [selectedStockForLoopConfig, setSelectedStockForLoopConfig] = useState<StrategicLoopConfigTarget | null>(null);
   const [localOverrides, setLocalOverrides] = useState<
-    Record<string, { runStrategicLoop?: boolean; executionMode?: 'PAPERLESS' | 'ACTUAL'; recommendation?: string }>
+    Record<
+      string,
+      {
+        runStrategicLoop?: boolean;
+        executionMode?: 'PAPERLESS' | 'ACTUAL';
+        recommendation?: string;
+        targetProfitMarginPct?: number;
+        stopLossMarginPct?: number;
+        autoBuyEnabled?: boolean;
+        autoSellEnabled?: boolean;
+        maxQuantity?: number;
+      }
+    >
   >({});
 
   const filteredHoldings = holdings.filter((h) => {
@@ -231,22 +246,114 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
 
                   {/* Run Strategic Loop Toggle & Live Recommendation Label */}
                   <td className="py-4 px-4 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <button
-                        onClick={() => handleToggleStrategicLoop(holding)}
-                        disabled={updatingSymbol === holding.symbol}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all border ${
-                          loopActive
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
-                            : 'bg-slate-100 text-slate-500 border-slate-200'
-                        }`}
-                        title="Continuously scan market signals and update buy/sell/hold diagnostics"
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleToggleStrategicLoop(holding)}
+                          disabled={updatingSymbol === holding.symbol}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all border ${
+                            loopActive
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}
+                          title="Continuously scan market signals and update buy/sell/hold diagnostics"
+                        >
+                          <Zap
+                            className={`w-2.5 h-2.5 ${loopActive ? 'text-emerald-600 fill-emerald-500 animate-pulse' : 'text-slate-400'}`}
+                          />
+                          <span>{loopActive ? 'Loop: ACTIVE' : 'Loop: OFF'}</span>
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setSelectedStockForLoopConfig({
+                              symbol: holding.symbol,
+                              companyName: holding.name || holding.companyName || holding.symbol,
+                              currentPrice: holding.currentPrice,
+                              avgCost: holding.avgCost,
+                              shares: holding.shares,
+                              runStrategicLoop: loopActive,
+                              executionMode: execMode,
+                              targetProfitMarginPct:
+                                localOverrides[holding.symbol]?.targetProfitMarginPct ??
+                                holding.targetProfitMarginPct ??
+                                5.0,
+                              stopLossMarginPct:
+                                localOverrides[holding.symbol]?.stopLossMarginPct ??
+                                holding.stopLossMarginPct ??
+                                3.0,
+                              autoBuyEnabled:
+                                localOverrides[holding.symbol]?.autoBuyEnabled ??
+                                holding.autoBuyEnabled ??
+                                false,
+                              autoSellEnabled:
+                                localOverrides[holding.symbol]?.autoSellEnabled ??
+                                holding.autoSellEnabled ??
+                                false,
+                              maxQuantity:
+                                localOverrides[holding.symbol]?.maxQuantity ?? holding.maxQuantity ?? 1,
+                            })
+                          }
+                          className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 transition-colors"
+                          title="Configure Gain/Loss thresholds (+Profit%, -Loss%) and Auto-Trading"
+                        >
+                          <SlidersHorizontal className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Threshold Badges */}
+                      <div
+                        onClick={() =>
+                          setSelectedStockForLoopConfig({
+                            symbol: holding.symbol,
+                            companyName: holding.name || holding.companyName || holding.symbol,
+                            currentPrice: holding.currentPrice,
+                            avgCost: holding.avgCost,
+                            shares: holding.shares,
+                            runStrategicLoop: loopActive,
+                            executionMode: execMode,
+                            targetProfitMarginPct:
+                              localOverrides[holding.symbol]?.targetProfitMarginPct ??
+                              holding.targetProfitMarginPct ??
+                              5.0,
+                            stopLossMarginPct:
+                              localOverrides[holding.symbol]?.stopLossMarginPct ??
+                              holding.stopLossMarginPct ??
+                              3.0,
+                            autoBuyEnabled:
+                              localOverrides[holding.symbol]?.autoBuyEnabled ??
+                              holding.autoBuyEnabled ??
+                              false,
+                            autoSellEnabled:
+                              localOverrides[holding.symbol]?.autoSellEnabled ??
+                              holding.autoSellEnabled ??
+                              false,
+                            maxQuantity:
+                              localOverrides[holding.symbol]?.maxQuantity ?? holding.maxQuantity ?? 1,
+                          })
+                        }
+                        className="flex items-center gap-1 text-[9px] font-mono cursor-pointer hover:opacity-80 transition-opacity"
+                        title="Click to configure Gain/Loss targets"
                       >
-                        <Zap
-                          className={`w-3 h-3 ${loopActive ? 'text-emerald-600 fill-emerald-500 animate-pulse' : 'text-slate-400'}`}
-                        />
-                        <span>{loopActive ? 'Loop: ACTIVE' : 'Loop: OFF'}</span>
-                      </button>
+                        <span className="px-1 py-0.2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                          🎯 +
+                          {(
+                            localOverrides[holding.symbol]?.targetProfitMarginPct ??
+                            holding.targetProfitMarginPct ??
+                            5
+                          ).toFixed(1)}
+                          %
+                        </span>
+                        <span className="px-1 py-0.2 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                          🛑 -
+                          {(
+                            localOverrides[holding.symbol]?.stopLossMarginPct ??
+                            holding.stopLossMarginPct ??
+                            3
+                          ).toFixed(1)}
+                          %
+                        </span>
+                      </div>
 
                       {/* AI Strategy Diagnosis Interactive Link / Button */}
                       <button
@@ -351,6 +458,28 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
         onOpenTradeModal={(stock) => {
           setSelectedStockForStrategy(null);
           openTradeModal(stock);
+        }}
+      />
+
+      {/* STRATEGIC LOOP CONFIG MODAL */}
+      <StrategicLoopConfigModal
+        isOpen={Boolean(selectedStockForLoopConfig)}
+        target={selectedStockForLoopConfig}
+        onClose={() => setSelectedStockForLoopConfig(null)}
+        onSaved={(updated) => {
+          setLocalOverrides((prev) => ({
+            ...prev,
+            [updated.symbol]: {
+              ...prev[updated.symbol],
+              runStrategicLoop: updated.runStrategicLoop,
+              executionMode: updated.executionMode,
+              targetProfitMarginPct: updated.targetProfitMarginPct,
+              stopLossMarginPct: updated.stopLossMarginPct,
+              autoBuyEnabled: updated.autoBuyEnabled,
+              autoSellEnabled: updated.autoSellEnabled,
+              maxQuantity: updated.maxQuantity,
+            },
+          }));
         }}
       />
     </div>

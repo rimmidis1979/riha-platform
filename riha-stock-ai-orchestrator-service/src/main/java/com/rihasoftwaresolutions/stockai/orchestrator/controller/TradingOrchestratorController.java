@@ -225,11 +225,16 @@ public class TradingOrchestratorController {
 
     public record UpdateStrategicLoopRequest(
             Boolean runStrategicLoop,
-            ExecutionMode executionMode
+            ExecutionMode executionMode,
+            BigDecimal targetProfitMarginPct,
+            BigDecimal stopLossMarginPct,
+            Boolean autoBuyEnabled,
+            Boolean autoSellEnabled,
+            BigDecimal maxQuantity
     ) {}
 
     @PutMapping("/stocks/{symbol}/strategic-loop")
-    @Operation(summary = "Enable or disable continuous strategic loop and toggle Paperless vs Actual at the stock level")
+    @Operation(summary = "Enable or disable continuous strategic loop, set target profit/stop-loss margins, and toggle Paperless vs Actual at the stock level")
     public ResponseEntity<StockMonitorEntity> updateStockStrategicLoop(
             @PathVariable("symbol") String symbol,
             @RequestHeader(value = "X-User-Email", required = false) String userEmail,
@@ -238,7 +243,12 @@ public class TradingOrchestratorController {
                 userEmail,
                 symbol,
                 req.runStrategicLoop(),
-                req.executionMode()
+                req.executionMode(),
+                req.targetProfitMarginPct(),
+                req.stopLossMarginPct(),
+                req.autoBuyEnabled(),
+                req.autoSellEnabled(),
+                req.maxQuantity()
         ));
     }
 
