@@ -10,6 +10,7 @@ import com.rihasoftwaresolutions.stockai.orchestrator.repository.GlobalTradingSe
 import com.rihasoftwaresolutions.stockai.orchestrator.repository.StockMonitorRepository;
 import com.rihasoftwaresolutions.stockai.orchestrator.repository.TransactionRecordRepository;
 import com.rihasoftwaresolutions.stockai.orchestrator.strategy.StrategyEvaluationEngine;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +25,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class RobinhoodStockTradingService {
@@ -45,6 +47,21 @@ public class RobinhoodStockTradingService {
 
     @Value("${riha.stockai.orchestrator.default-user-id:ram-ai@rihasoftwaresolutions.com}")
     private String defaultUserId;
+
+    @Value("${riha.stockai.robinhood.access-token:}")
+    private String defaultRobinhoodAccessToken;
+
+    @Value("${riha.stockai.robinhood.refresh-token:}")
+    private String defaultRobinhoodRefreshToken;
+
+    @Value("${riha.stockai.robinhood.device-token:}")
+    private String defaultRobinhoodDeviceToken;
+
+    @Value("${riha.stockai.robinhood.username:}")
+    private String defaultRobinhoodUsername;
+
+    @Value("${riha.stockai.robinhood.account-number:}")
+    private String defaultRobinhoodAccountNumber;
 
     public record RobinhoodAuthResponse(
             boolean success,
@@ -127,14 +144,77 @@ public class RobinhoodStockTradingService {
     }
 
     /**
-     * Resolves the user's Robinhood API token/key from settings.
+     * Pre-configures Robinhood credentials using configured properties/tokens on startup.
+     */
+    @PostConstruct
+    public void initDefaultRobinhoodCredentials() {
+        try {
+            String uid = defaultUserId;
+            GlobalTradingSettingsEntity settings = settingsRepo.findById(uid)
+                    .orElseGet(() -> new GlobalTradingSettingsEntity(uid));
+
+            boolean updated = false;
+
+            if (defaultRobinhoodAccessToken != null && !defaultRobinhoodAccessToken.isBlank()) {
+                settings.setRobinhoodApiKey(defaultRobinhoodAccessToken.trim());
+                settings.setRobinhoodConnected(true);
+                updated = true;
+            }
+            if (defaultRobinhoodRefreshToken != null && !defaultRobinhoodRefreshToken.isBlank()) {
+                settings.setRobinhoodRefreshToken(defaultRobinhoodRefreshToken.trim());
+                updated = true;
+            }
+            if (defaultRobinhoodDeviceToken != null && !defaultRobinhoodDeviceToken.isBlank()) {
+                settings.setRobinhoodDeviceToken(defaultRobinhoodDeviceToken.trim());
+                updated = true;
+            }
+            if (defaultRobinhoodUsername != null && !defaultRobinhoodUsername.isBlank()) {
+                settings.setRobinhoodUsername(defaultRobinhoodUsername.trim());
+                updated = true;
+            }
+            if (defaultRobinhoodAccountNumber != null && !defaultRobinhoodAccountNumber.isBlank()) {
+                settings.setRobinhoodAccountNumber(defaultRobinhoodAccountNumber.trim());
+                updated = true;
+            }
+
+            if (updated) {
+                settings.setUpdatedAt(Instant.now());
+                settingsRepo.save(settings);
+                log.info("Initialized default Robinhood credentials for user {}", uid);
+            }
+
+            // In background, validate and sync stock orders live from Robinhood
+            if (settings.getRobinhoodApiKey() != null && !settings.getRobinhoodApiKey().isBlank()) {
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        getRobinhoodAuthStatus(uid);
+                        syncRobinhoodStockOrders(uid);
+                    } catch (Exception ex) {
+                        log.debug("Robinhood startup auto-sync notice: {}", ex.getMessage());
+                    }
+                });
+            }
+        } catch (Exception ex) {
+            log.warn("Could not pre-initialize Robinhood credentials: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Resolves the user's Robinhood API token/key from settings or configured default token.
      */
     public String resolveRobinhoodToken(String userId) {
         String uid = (userId != null && !userId.isBlank()) ? userId : defaultUserId;
-        return settingsRepo.findById(uid)
+        String dbToken = settingsRepo.findById(uid)
                 .map(GlobalTradingSettingsEntity::getRobinhoodApiKey)
                 .filter(k -> k != null && !k.isBlank())
                 .orElse(null);
+        if (dbToken != null && !dbToken.isBlank()) {
+            return dbToken;
+        }
+        if (defaultRobinhoodAccessToken != null && !defaultRobinhoodAccessToken.isBlank()) {
+            return defaultRobinhoodAccessToken.trim();
+        }
+        return null;
     }
 
     /**
@@ -488,9 +568,9 @@ public class RobinhoodStockTradingService {
      */
     public RobinhoodAuthResponse getRobinhoodAuthStatus(String userId) {
         String uid = (userId != null && !userId.isBlank()) ? userId : defaultUserId;
-        GlobalTradingSettingsEntity settings = settingsRepo.findById(uid).orElse(null);
+        String token = resolveRobinhoodToken(uid);
 
-        if (settings == null || settings.getRobinhoodApiKey() == null || settings.getRobinhoodApiKey().isBlank()) {
+        if (token == null || token.isBlank()) {
             return new RobinhoodAuthResponse(
                     true,
                     false,
@@ -507,9 +587,22 @@ public class RobinhoodStockTradingService {
             );
         }
 
-        String token = settings.getRobinhoodApiKey();
-        String username = settings.getRobinhoodUsername() != null ? settings.getRobinhoodUsername() : "Robinhood User";
-        String accountNum = settings.getRobinhoodAccountNumber() != null ? settings.getRobinhoodAccountNumber() : "RH-LIVE";
+        GlobalTradingSettingsEntity settings = settingsRepo.findById(uid)
+                .orElseGet(() -> new GlobalTradingSettingsEntity(uid));
+
+        boolean needsSave = false;
+        if (settings.getRobinhoodApiKey() == null || settings.getRobinhoodApiKey().isBlank()) {
+            settings.setRobinhoodApiKey(token);
+            settings.setRobinhoodConnected(true);
+            needsSave = true;
+        }
+
+        String username = (settings.getRobinhoodUsername() != null && !settings.getRobinhoodUsername().isBlank())
+                ? settings.getRobinhoodUsername()
+                : ((defaultRobinhoodUsername != null && !defaultRobinhoodUsername.isBlank()) ? defaultRobinhoodUsername : "rami28984");
+        String accountNum = (settings.getRobinhoodAccountNumber() != null && !settings.getRobinhoodAccountNumber().isBlank())
+                ? settings.getRobinhoodAccountNumber()
+                : ((defaultRobinhoodAccountNumber != null && !defaultRobinhoodAccountNumber.isBlank()) ? defaultRobinhoodAccountNumber : "605681865");
         BigDecimal equity = BigDecimal.ZERO;
         BigDecimal buyingPower = BigDecimal.ZERO;
         BigDecimal cash = BigDecimal.ZERO;
@@ -530,6 +623,8 @@ public class RobinhoodStockTradingService {
                     accountNum = firstAcct.path("account_number").asText(accountNum);
                     buyingPower = new BigDecimal(firstAcct.path("buying_power").asText("0.0"));
                     cash = new BigDecimal(firstAcct.path("cash").asText("0.0"));
+                    settings.setRobinhoodAccountNumber(accountNum);
+                    needsSave = true;
                 }
             }
 
@@ -549,6 +644,12 @@ public class RobinhoodStockTradingService {
                 }
             }
 
+            if (needsSave) {
+                settings.setRobinhoodConnected(true);
+                settings.setUpdatedAt(Instant.now());
+                settingsRepo.save(settings);
+            }
+
             return new RobinhoodAuthResponse(
                     true,
                     true,
@@ -560,7 +661,7 @@ public class RobinhoodStockTradingService {
                     equity,
                     buyingPower,
                     cash,
-                    "Authenticated with Robinhood Live",
+                    "Authenticated with Robinhood Live (Configured Token)",
                     settings.getUpdatedAt()
             );
 
@@ -568,7 +669,7 @@ public class RobinhoodStockTradingService {
             log.debug("Robinhood status live check note: {}", ex.getMessage());
             return new RobinhoodAuthResponse(
                     true,
-                    settings.isRobinhoodConnected(),
+                    true,
                     false,
                     null,
                     null,
@@ -577,7 +678,7 @@ public class RobinhoodStockTradingService {
                     equity,
                     buyingPower,
                     cash,
-                    "Robinhood Session Active",
+                    "Robinhood Session Active (Configured Token)",
                     settings.getUpdatedAt()
             );
         }

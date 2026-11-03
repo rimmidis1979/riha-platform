@@ -40,6 +40,9 @@ public class GlobalTradingSettingsEntity {
     @Column(name = "robinhood_device_token", length = 64)
     private String robinhoodDeviceToken;
 
+    @Column(name = "robinhood_refresh_token", length = 2048)
+    private String robinhoodRefreshToken;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "robinhood_execution_mode", length = 32)
     private ExecutionMode robinhoodExecutionMode = ExecutionMode.ACTUAL;
@@ -157,6 +160,14 @@ public class GlobalTradingSettingsEntity {
 
     public void setRobinhoodDeviceToken(String robinhoodDeviceToken) {
         this.robinhoodDeviceToken = robinhoodDeviceToken;
+    }
+
+    public String getRobinhoodRefreshToken() {
+        return robinhoodRefreshToken;
+    }
+
+    public void setRobinhoodRefreshToken(String robinhoodRefreshToken) {
+        this.robinhoodRefreshToken = robinhoodRefreshToken;
     }
 
     public ExecutionMode getRobinhoodExecutionMode() {
