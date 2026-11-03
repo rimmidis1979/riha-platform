@@ -860,6 +860,7 @@ export class StockApiClient {
     username?: string;
     password?: string;
     mfaCode?: string;
+    challengeId?: string;
     directToken?: string;
   }): Promise<any> {
     const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/auth/login`, {

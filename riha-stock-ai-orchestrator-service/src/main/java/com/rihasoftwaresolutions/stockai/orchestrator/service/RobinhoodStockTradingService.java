@@ -51,6 +51,7 @@ public class RobinhoodStockTradingService {
             boolean authenticated,
             boolean mfaRequired,
             String challengeType,
+            String challengeId,
             String username,
             String accountNumber,
             BigDecimal portfolioEquity,
@@ -64,6 +65,7 @@ public class RobinhoodStockTradingService {
             String username,
             String password,
             String mfaCode,
+            String challengeId,
             String directToken
     ) {}
 
@@ -146,6 +148,7 @@ public class RobinhoodStockTradingService {
             String username,
             String password,
             String mfaCode,
+            String challengeId,
             String directToken) {
 
         String uid = (userId != null && !userId.isBlank()) ? userId : defaultUserId;
@@ -155,6 +158,10 @@ public class RobinhoodStockTradingService {
         // 1. Direct Bearer token authentication
         if (directToken != null && !directToken.isBlank()) {
             String token = directToken.trim();
+            // Remove 'Bearer ' prefix if user pasted it
+            if (token.toLowerCase(Locale.ROOT).startsWith("bearer ")) {
+                token = token.substring(7).trim();
+            }
             try {
                 String userJson = restClient.get()
                         .uri(apiBaseUrl + "/user/")
@@ -239,6 +246,7 @@ public class RobinhoodStockTradingService {
                         true,
                         false,
                         null,
+                        null,
                         liveUsername,
                         liveAccountNum,
                         equity,
@@ -256,6 +264,7 @@ public class RobinhoodStockTradingService {
                         null,
                         null,
                         null,
+                        null,
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
@@ -265,12 +274,31 @@ public class RobinhoodStockTradingService {
             }
         }
 
-        // 2. Username + Password live OAuth2 flow
+        // 2. Respond to existing challenge if challengeId and mfaCode are provided
+        if (challengeId != null && !challengeId.isBlank() && mfaCode != null && !mfaCode.isBlank()) {
+            try {
+                String challengeUrl = apiBaseUrl + "/challenge/" + challengeId.trim() + "/respond/";
+                restClient.post()
+                        .uri(challengeUrl)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT)
+                        .body(Map.of("response", mfaCode.trim()))
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("Robinhood challenge response submitted for challenge {}", challengeId);
+            } catch (Exception cEx) {
+                log.warn("Robinhood challenge response submission: {}", cEx.getMessage());
+            }
+        }
+
+        // 3. Username + Password live OAuth2 flow
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
             return new RobinhoodAuthResponse(
                     false,
                     false,
                     false,
+                    null,
                     null,
                     null,
                     null,
@@ -283,6 +311,14 @@ public class RobinhoodStockTradingService {
         }
 
         try {
+            // Ensure consistent device token across login requests
+            String deviceToken = settings.getRobinhoodDeviceToken();
+            if (deviceToken == null || deviceToken.isBlank()) {
+                deviceToken = UUID.randomUUID().toString();
+                settings.setRobinhoodDeviceToken(deviceToken);
+                settingsRepo.save(settings);
+            }
+
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("client_id", ROBINHOOD_CLIENT_ID);
             payload.put("grant_type", "password");
@@ -290,18 +326,24 @@ public class RobinhoodStockTradingService {
             payload.put("username", username.trim());
             payload.put("password", password);
             payload.put("expires_in", 86400);
-            payload.put("device_token", UUID.randomUUID().toString());
+            payload.put("device_token", deviceToken);
+            payload.put("challenge_type", "sms");
 
             if (mfaCode != null && !mfaCode.isBlank()) {
                 payload.put("mfa_code", mfaCode.trim());
             }
 
-            String tokenResp = restClient.post()
+            var requestSpec = restClient.post()
                     .uri(apiBaseUrl + "/oauth2/token/")
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                    .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT)
-                    .body(payload)
+                    .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT);
+
+            if (challengeId != null && !challengeId.isBlank()) {
+                requestSpec.header("X-Robinhood-Challenge-Response-Id", challengeId.trim());
+            }
+
+            String tokenResp = requestSpec.body(payload)
                     .retrieve()
                     .body(String.class);
 
@@ -309,14 +351,16 @@ public class RobinhoodStockTradingService {
                 JsonNode tokenNode = objectMapper.readTree(tokenResp);
                 if (tokenNode.has("access_token")) {
                     String accessToken = tokenNode.path("access_token").asText();
-                    return authenticateRobinhoodLive(uid, username, null, null, accessToken);
+                    return authenticateRobinhoodLive(uid, username, null, null, null, accessToken);
                 } else if (tokenNode.path("mfa_required").asBoolean(false) || tokenNode.has("challenge")) {
                     String challengeType = tokenNode.path("mfa_type").asText("app");
+                    String cId = tokenNode.path("challenge").path("id").asText(null);
                     return new RobinhoodAuthResponse(
                             false,
                             false,
                             true,
                             challengeType,
+                            cId,
                             username,
                             null,
                             BigDecimal.ZERO,
@@ -332,6 +376,7 @@ public class RobinhoodStockTradingService {
                     false,
                     false,
                     false,
+                    null,
                     null,
                     null,
                     null,
@@ -347,26 +392,44 @@ public class RobinhoodStockTradingService {
             log.warn("Robinhood live authentication response HTTP {}: {}", rEx.getStatusCode(), errBody);
             try {
                 JsonNode errJson = objectMapper.readTree(errBody);
-                if (errJson.path("mfa_required").asBoolean(false) || errJson.has("challenge")) {
+                String cid = null;
+                String cType = errJson.path("mfa_type").asText("app");
+
+                if (errJson.has("challenge")) {
+                    cid = errJson.path("challenge").path("id").asText(null);
+                    cType = errJson.path("challenge").path("type").asText("sms");
+                }
+                if (cid == null && rEx.getResponseHeaders() != null && rEx.getResponseHeaders().containsKey("X-Robinhood-Challenge-Response-Id")) {
+                    cid = rEx.getResponseHeaders().getFirst("X-Robinhood-Challenge-Response-Id");
+                }
+
+                if (errJson.path("mfa_required").asBoolean(false) || cid != null) {
                     return new RobinhoodAuthResponse(
                             false,
                             false,
                             true,
-                            errJson.path("mfa_type").asText("app"),
+                            cType,
+                            cid,
                             username,
                             null,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
-                            "Two-Factor Authentication required. Please enter your 6-digit MFA / authenticator code.",
+                            "Two-Factor Challenge issued by Robinhood. Please enter your 6-digit code from your authenticator app or SMS.",
                             null
                     );
                 }
+
                 String detail = errJson.path("detail").asText(errJson.path("error").asText("Authentication failed with provided credentials."));
+                if (detail.toLowerCase(Locale.ROOT).contains("unable to log in with provided credentials")) {
+                    detail = "Unable to log in with provided credentials. If your Robinhood account has 2FA enabled, enter your 6-digit Authenticator code in the 2FA field, or use the 'Direct Bearer Token' tab for 100% instant connection.";
+                }
+
                 return new RobinhoodAuthResponse(
                         false,
                         false,
                         false,
+                        null,
                         null,
                         null,
                         null,
@@ -381,6 +444,7 @@ public class RobinhoodStockTradingService {
                         false,
                         false,
                         false,
+                        null,
                         null,
                         null,
                         null,
@@ -400,6 +464,7 @@ public class RobinhoodStockTradingService {
                     null,
                     null,
                     null,
+                    null,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
@@ -407,6 +472,15 @@ public class RobinhoodStockTradingService {
                     null
             );
         }
+    }
+
+    public RobinhoodAuthResponse authenticateRobinhoodLive(
+            String userId,
+            String username,
+            String password,
+            String mfaCode,
+            String directToken) {
+        return authenticateRobinhoodLive(userId, username, password, mfaCode, null, directToken);
     }
 
     /**
@@ -421,6 +495,7 @@ public class RobinhoodStockTradingService {
                     true,
                     false,
                     false,
+                    null,
                     null,
                     null,
                     null,
@@ -479,6 +554,7 @@ public class RobinhoodStockTradingService {
                     true,
                     false,
                     null,
+                    null,
                     username,
                     accountNum,
                     equity,
@@ -494,6 +570,7 @@ public class RobinhoodStockTradingService {
                     true,
                     settings.isRobinhoodConnected(),
                     false,
+                    null,
                     null,
                     username,
                     accountNum,
@@ -641,7 +718,9 @@ public class RobinhoodStockTradingService {
 
     /**
      * Fetches all owned Robinhood stock positions (Equities).
-     * Reconciles remote Robinhood positions and locally stored orchestrator positions.
+     * STRICT ZERO MOCK DATA POLICY:
+     * Only queries Robinhood's live REST API (/positions/?nonzero=true).
+     * Returns empty list if unauthenticated or when 0 shares are owned.
      */
     @Transactional
     public List<RobinhoodStockHolding> getOwnedStocks(String userId) {
@@ -649,121 +728,67 @@ public class RobinhoodStockTradingService {
         String token = resolveRobinhoodToken(uid);
         Map<String, RobinhoodStockHolding> holdingsMap = new LinkedHashMap<>();
 
-        // 1. Attempt fetching remote positions from Robinhood REST API if token is present
-        if (token != null && !token.isBlank() && !token.equalsIgnoreCase("null")) {
-            try {
-                String positionsUrl = apiBaseUrl + "/positions/?nonzero=true";
-                String json = restClient.get()
-                        .uri(positionsUrl)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                        .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .retrieve()
-                        .body(String.class);
-
-                if (json != null && !json.isBlank()) {
-                    JsonNode root = objectMapper.readTree(json);
-                    JsonNode results = root.path("results");
-                    if (results.isArray()) {
-                        for (JsonNode posNode : results) {
-                            BigDecimal qty = new BigDecimal(posNode.path("quantity").asText("0.0"));
-                            if (qty.compareTo(BigDecimal.ZERO) <= 0) continue;
-
-                            BigDecimal avgBuyPrice = new BigDecimal(posNode.path("average_buy_price").asText("0.0"));
-                            String instrumentUrl = posNode.path("instrument").asText("");
-                            String symbol = fetchSymbolFromInstrumentUrl(instrumentUrl, token);
-                            if (symbol == null || symbol.isBlank()) continue;
-
-                            RobinhoodStockQuote quote = getStockQuote(symbol);
-                            BigDecimal curPrice = quote.price();
-                            BigDecimal equity = curPrice.multiply(qty).setScale(2, RoundingMode.HALF_UP);
-                            BigDecimal totalGain = curPrice.subtract(avgBuyPrice).multiply(qty).setScale(2, RoundingMode.HALF_UP);
-                            BigDecimal totalGainPct = (avgBuyPrice.compareTo(BigDecimal.ZERO) > 0)
-                                    ? curPrice.subtract(avgBuyPrice).divide(avgBuyPrice, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
-                                    : BigDecimal.ZERO;
-
-                            var diag = strategyEngine.evaluate(symbol, curPrice, avgBuyPrice, new BigDecimal("5.00"), new BigDecimal("3.00"));
-
-                            holdingsMap.put(symbol, new RobinhoodStockHolding(
-                                    symbol,
-                                    quote.companyName(),
-                                    qty,
-                                    avgBuyPrice,
-                                    curPrice,
-                                    equity,
-                                    totalGain,
-                                    totalGainPct,
-                                    quote.change().multiply(qty),
-                                    quote.changePercent(),
-                                    true,
-                                    ExecutionMode.ACTUAL,
-                                    diag.recommendation().name(),
-                                    diag.confidenceScore(),
-                                    diag.detailedNotes(),
-                                    Instant.now()
-                            ));
-                        }
-                    }
-                }
-            } catch (Exception ex) {
-                log.warn("Robinhood Equities REST API call to /positions/?nonzero=true failed or token requires login: {}", ex.getMessage());
-            }
+        if (token == null || token.isBlank() || token.equalsIgnoreCase("null")) {
+            log.debug("No Robinhood token present. Returning 0 holdings (Zero Mock Policy).");
+            return List.of();
         }
 
-        // 2. Merge with locally orchestrated stock positions for ROBINHOOD from DB
-        List<StockMonitorEntity> ownedMonitors = monitorRepo.findByUserIdAndBroker(uid, BrokerType.ROBINHOOD);
-        for (StockMonitorEntity m : ownedMonitors) {
-            String sym = m.getSymbol().toUpperCase(Locale.ROOT);
-            if (sym.contains("-") || sym.contains("BTC") || sym.contains("ETH")) {
-                continue; // Skip crypto entries in the Stock tab
-            }
+        try {
+            String positionsUrl = apiBaseUrl + "/positions/?nonzero=true";
+            String json = restClient.get()
+                    .uri(positionsUrl)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
 
-            if (!m.isOwned() && !holdingsMap.containsKey(sym)) {
-                continue;
-            }
+            if (json != null && !json.isBlank()) {
+                JsonNode root = objectMapper.readTree(json);
+                JsonNode results = root.path("results");
+                if (results.isArray()) {
+                    for (JsonNode posNode : results) {
+                        BigDecimal qty = new BigDecimal(posNode.path("quantity").asText("0.0"));
+                        if (qty.compareTo(BigDecimal.ZERO) <= 0) continue;
 
-            BigDecimal curPrice = m.getCurrentPrice() != null ? m.getCurrentPrice() : fetchStockPriceFallback(sym);
-            BigDecimal shares = m.getMaxBuyQuantity() != null && m.getMaxBuyQuantity().compareTo(BigDecimal.ZERO) > 0
-                    ? m.getMaxBuyQuantity()
-                    : BigDecimal.ONE;
+                        BigDecimal avgBuyPrice = new BigDecimal(posNode.path("average_buy_price").asText("0.0"));
+                        String instrumentUrl = posNode.path("instrument").asText("");
+                        String symbol = fetchSymbolFromInstrumentUrl(instrumentUrl, token);
+                        if (symbol == null || symbol.isBlank()) continue;
 
-            // Find matching buy transaction to determine average cost
-            List<TransactionRecordEntity> txs = transactionRepo.findByUserIdAndSymbolOrderByExecutedAtDesc(uid, sym);
-            BigDecimal avgCost = curPrice;
-            for (var t : txs) {
-                if (t.getSide() == OrderSide.BUY && t.getBroker() == BrokerType.ROBINHOOD && t.getExecutionPrice().compareTo(BigDecimal.ZERO) > 0) {
-                    avgCost = t.getExecutionPrice();
-                    shares = t.getQuantity();
-                    break;
+                        RobinhoodStockQuote quote = getStockQuote(symbol);
+                        BigDecimal curPrice = quote.price();
+                        BigDecimal equity = curPrice.multiply(qty).setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal totalGain = curPrice.subtract(avgBuyPrice).multiply(qty).setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal totalGainPct = (avgBuyPrice.compareTo(BigDecimal.ZERO) > 0)
+                                ? curPrice.subtract(avgBuyPrice).divide(avgBuyPrice, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
+                                : BigDecimal.ZERO;
+
+                        var diag = strategyEngine.evaluate(symbol, curPrice, avgBuyPrice, new BigDecimal("5.00"), new BigDecimal("3.00"));
+
+                        holdingsMap.put(symbol, new RobinhoodStockHolding(
+                                symbol,
+                                quote.companyName(),
+                                qty,
+                                avgBuyPrice,
+                                curPrice,
+                                equity,
+                                totalGain,
+                                totalGainPct,
+                                quote.change().multiply(qty),
+                                quote.changePercent(),
+                                true,
+                                ExecutionMode.ACTUAL,
+                                diag.recommendation().name(),
+                                diag.confidenceScore(),
+                                diag.detailedNotes(),
+                                Instant.now()
+                        ));
+                    }
                 }
             }
-
-            BigDecimal equity = curPrice.multiply(shares).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal totalGain = curPrice.subtract(avgCost).multiply(shares).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal totalGainPct = (avgCost.compareTo(BigDecimal.ZERO) > 0)
-                    ? curPrice.subtract(avgCost).divide(avgCost, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
-                    : BigDecimal.ZERO;
-
-            var diag = strategyEngine.evaluate(sym, curPrice, avgCost, m.getTargetProfitMarginPct(), m.getStopLossMarginPct());
-
-            holdingsMap.put(sym, new RobinhoodStockHolding(
-                    sym,
-                    m.getCompanyName() != null ? m.getCompanyName() : sym,
-                    shares,
-                    avgCost,
-                    curPrice,
-                    equity,
-                    totalGain,
-                    totalGainPct,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    m.isRunStrategicLoop(),
-                    m.getExecutionMode(),
-                    diag.recommendation().name(),
-                    diag.confidenceScore(),
-                    diag.detailedNotes(),
-                    Instant.now()
-            ));
+        } catch (Exception ex) {
+            log.warn("Robinhood Equities REST API call to /positions/?nonzero=true failed: {}", ex.getMessage());
         }
 
         return new ArrayList<>(holdingsMap.values());
@@ -771,6 +796,7 @@ public class RobinhoodStockTradingService {
 
     /**
      * Retrieves live stock quote for ticker (e.g. NVDA, AAPL, TSLA, MSFT).
+     * ZERO MOCK DATA: Never fabricates prices.
      */
     public RobinhoodStockQuote getStockQuote(String ticker) {
         String sym = ticker.trim().toUpperCase(Locale.ROOT);
@@ -797,8 +823,7 @@ public class RobinhoodStockTradingService {
             log.debug("Robinhood public quote for {} failed: {}", sym, ex.getMessage());
         }
 
-        BigDecimal fallbackPrice = fetchStockPriceFallback(sym);
-        return new RobinhoodStockQuote(sym, getCompanyNameFallback(sym), fallbackPrice, fallbackPrice, BigDecimal.ZERO, BigDecimal.ZERO, Instant.now());
+        return new RobinhoodStockQuote(sym, getCompanyNameFallback(sym), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, Instant.now());
     }
 
     /**
@@ -1053,21 +1078,6 @@ public class RobinhoodStockTradingService {
             list.add(getStockQuote(t));
         }
         return list;
-    }
-
-    private BigDecimal fetchStockPriceFallback(String symbol) {
-        return switch (symbol.toUpperCase(Locale.ROOT)) {
-            case "NVDA" -> new BigDecimal("138.50");
-            case "AAPL" -> new BigDecimal("225.20");
-            case "TSLA" -> new BigDecimal("250.00");
-            case "MSFT" -> new BigDecimal("415.80");
-            case "AMZN" -> new BigDecimal("192.50");
-            case "GOOGL" -> new BigDecimal("175.40");
-            case "AMD" -> new BigDecimal("148.60");
-            case "META" -> new BigDecimal("565.00");
-            case "SPY" -> new BigDecimal("572.00");
-            default -> new BigDecimal("100.00");
-        };
     }
 
     private String getCompanyNameFallback(String symbol) {

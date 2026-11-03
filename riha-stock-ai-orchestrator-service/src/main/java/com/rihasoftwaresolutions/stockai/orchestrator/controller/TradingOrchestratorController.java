@@ -256,6 +256,7 @@ public class TradingOrchestratorController {
                 req.username(),
                 req.password(),
                 req.mfaCode(),
+                req.challengeId(),
                 req.directToken()
         );
         return ResponseEntity.ok(res);

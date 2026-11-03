@@ -80,7 +80,7 @@ public class RobinhoodIntegrationService {
 
             if (rawJson != null && !rawJson.isBlank()) {
                 JsonNode root = objectMapper.readTree(rawJson);
-                String accountNum = root.path("accountNumber").asText("311168452001");
+                String accountNum = root.path("accountNumber").asText("NOT_CONNECTED");
                 BigDecimal cash = new BigDecimal(root.path("liveCashBalance").asText("0.0"));
                 BigDecimal buyingPower = new BigDecimal(root.path("buyingPowerUsd").asText(cash.toString()));
                 BigDecimal totalEquity = new BigDecimal(root.path("totalEquityUsd").asText(cash.toString()));
@@ -125,7 +125,7 @@ public class RobinhoodIntegrationService {
             JsonNode gwRoot = objectMapper.readTree(rawGw);
             JsonNode payload = gwRoot.path("outputPayload");
             if (!payload.isMissingNode()) {
-                String accountNum = payload.path("accountNumber").asText("311168452001");
+                String accountNum = payload.path("accountNumber").asText("NOT_CONNECTED");
                 BigDecimal cash = new BigDecimal(payload.path("liveCashBalance").asText("0.0"));
                 BigDecimal buyingPower = new BigDecimal(payload.path("buyingPowerUsd").asText(cash.toString()));
                 BigDecimal totalEquity = new BigDecimal(payload.path("totalEquityUsd").asText(cash.toString()));

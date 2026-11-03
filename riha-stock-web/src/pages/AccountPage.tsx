@@ -428,9 +428,11 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending }) =
                 </div>
               </div>
               <div className="text-xl font-black font-mono text-slate-900">
-                {robinhoodData?.accountNumber || '311168452001'}
+                {robinhoodData?.accountNumber || 'NOT CONNECTED'}
               </div>
-              <div className="text-xs text-emerald-600 font-semibold mt-1">Authenticated via Ed25519</div>
+              <div className="text-xs text-emerald-600 font-semibold mt-1">
+                {robinhoodData?.accountNumber ? 'Authenticated via Ed25519' : 'Authentication Pending'}
+              </div>
             </div>
           </div>
         </div>

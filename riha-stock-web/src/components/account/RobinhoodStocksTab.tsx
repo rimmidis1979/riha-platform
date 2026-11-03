@@ -105,6 +105,7 @@ export const RobinhoodStocksTab: React.FC = () => {
   const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [mfaPromptRequired, setMfaPromptRequired] = useState<boolean>(false);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
 
   // Quick Order Modal State
   const [selectedStockForOrder, setSelectedStockForOrder] = useState<{
@@ -181,12 +182,18 @@ export const RobinhoodStocksTab: React.FC = () => {
         if (authMfaCode.trim()) {
           payload.mfaCode = authMfaCode.trim();
         }
+        if (challengeId) {
+          payload.challengeId = challengeId;
+        }
       }
 
       const res = await StockApiClient.authenticateRobinhoodLive(payload);
 
       if (res.mfaRequired) {
         setMfaPromptRequired(true);
+        if (res.challengeId) {
+          setChallengeId(res.challengeId);
+        }
         setAuthError(res.message || 'Two-Factor Authentication (MFA) required. Please enter your 6-digit code.');
         setIsAuthenticating(false);
         return;
@@ -197,6 +204,7 @@ export const RobinhoodStocksTab: React.FC = () => {
         setIsAuthModalOpen(false);
         setAuthPassword('');
         setAuthMfaCode('');
+        setChallengeId(null);
         setMfaPromptRequired(false);
         setStatusMessage({
           type: 'success',
@@ -386,7 +394,7 @@ export const RobinhoodStocksTab: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-mono mt-0.5">
-                Account #: <span className="font-bold text-slate-700">{authStatus.accountNumber || 'RH-LIVE'}</span> • Settled Cash: <span className="font-bold text-slate-900">${(authStatus.cash || 0).toFixed(2)}</span> • Buying Power: <span className="font-bold text-emerald-700">${(authStatus.buyingPower || 0).toFixed(2)}</span>
+                Account #: <span className="font-bold text-slate-700">{authStatus.accountNumber || 'LIVE_CONNECTED'}</span> • Settled Cash: <span className="font-bold text-slate-900">${(authStatus.cash || 0).toFixed(2)}</span> • Buying Power: <span className="font-bold text-emerald-700">${(authStatus.buyingPower || 0).toFixed(2)}</span>
               </p>
             </div>
           </div>
