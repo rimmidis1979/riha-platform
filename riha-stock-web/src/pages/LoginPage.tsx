@@ -1,12 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { StockApiClient } from '../services/stockApiClient';
-import { TrendingUp, ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
+import {
+  TrendingUp,
+  ShieldCheck,
+  AlertCircle,
+  RefreshCw,
+  Cpu,
+  Lock,
+  Workflow,
+  Radio,
+  FileText,
+  Activity,
+  CheckCircle2,
+} from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { loginWithGoogle, loginWithCredentials, isLoading, error } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { loginWithGoogle, isLoading, error } = useAuth();
   const [localError, setLocalError] = useState<string | null>(null);
   const [googleClientReady, setGoogleClientReady] = useState(false);
   const gsiInitializedRef = useRef(false);
@@ -39,11 +49,11 @@ export const LoginPage: React.FC = () => {
             if (btnContainer && google.accounts.id.renderButton) {
               btnContainer.innerHTML = '';
               google.accounts.id.renderButton(btnContainer, {
-                theme: 'outline',
+                theme: 'filled_black',
                 size: 'large',
-                width: 380,
+                width: 360,
                 text: 'continue_with',
-                shape: 'rectangular',
+                shape: 'pill',
                 logo_alignment: 'left',
               });
             }
@@ -73,19 +83,6 @@ export const LoginPage: React.FC = () => {
       isMounted = false;
     };
   }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError(null);
-    if (!email) {
-      setLocalError('Please enter your email address');
-      return;
-    }
-    const success = await loginWithCredentials(email, password);
-    if (!success) {
-      setLocalError('Authentication failed. Please verify your credentials or use Google Sign-In.');
-    }
-  };
 
   const handleGoogleClick = async () => {
     setLocalError(null);
@@ -153,50 +150,63 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
-      {/* Platform Branding */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 mb-4">
-          <TrendingUp className="w-8 h-8" />
-        </div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          RIHA <span className="text-blue-600">Stock</span>
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Personalized Real-Time Algorithmic Trading Platform
-        </p>
-      </div>
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
+      {/* Ambient background glows for rich dark mode depth */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-1/4 w-[400px] h-[250px] bg-emerald-600/5 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Main Login Card */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 sm:px-10 shadow-xl shadow-slate-200/60 rounded-2xl border border-slate-200">
-          <div className="mb-6 text-center">
-            <h2 className="text-xl font-bold text-slate-900">Sign in to your account</h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Secured via enterprise <span className="font-medium text-blue-600">riha-auth-service</span> with Google OAuth 2.0
+      {/* Main Container with generous spacing */}
+      <div className="max-w-xl w-full mx-auto space-y-8 relative z-10">
+        {/* PLATFORM BRANDING */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 shadow-xl shadow-indigo-600/20 mb-2">
+            <TrendingUp className="w-8 h-8" />
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <span className="px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-indigo-950/80 text-indigo-400 border border-indigo-800/80 uppercase tracking-wider">
+              Institutional Terminal
+            </span>
+            <span className="px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 uppercase tracking-wider">
+              Zero-Mock Data
+            </span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+            RIHA <span className="text-indigo-400">Stock AI</span>
+          </h1>
+          <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+            Real-Time Autonomous Algorithmic Trading Platform with Position-Gated Execution and SEC Regulatory Ledger.
+          </p>
+        </div>
+
+        {/* MAIN DARK MODE LOGIN CARD */}
+        <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl space-y-6">
+          <div className="text-center space-y-1.5 pb-2">
+            <h2 className="text-xl font-bold text-white tracking-tight">Enterprise Trader Sign In</h2>
+            <p className="text-xs text-slate-400">
+              Authentication is strictly managed via Google Identity Services &amp; OAuth 2.0.
             </p>
           </div>
 
           {(error || localError) && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-              <span>{error || localError}</span>
+            <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-start gap-3 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{error || localError}</span>
             </div>
           )}
 
-          {/* Primary Google Login Section */}
-          <div className="space-y-4">
-            {/* Native GSI Rendered Button if available */}
+          {/* PRIMARY GOOGLE SINGLE SIGN-ON ACTION */}
+          <div className="space-y-4 pt-1">
+            {/* Native Google Identity Services Button Container */}
             <div id="google-btn-rendered" className="w-full flex justify-center min-h-[44px]" />
 
-            {/* Stylized Google Action Button */}
+            {/* Styled Enterprise Google OAuth Button */}
             <button
               type="button"
               onClick={handleGoogleClick}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-300 rounded-xl bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all shadow-sm"
+              className="w-full flex items-center justify-center gap-3.5 py-3.5 px-6 rounded-2xl bg-[#161d2d] hover:bg-[#1f293d] border border-slate-700 hover:border-indigo-500/80 text-white font-bold text-sm shadow-xl shadow-black/40 transition-all duration-200 transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -214,79 +224,48 @@ export const LoginPage: React.FC = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>Continue with Google</span>
+              <span>Continue with Google Sign-In</span>
             </button>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-3 text-slate-400 font-medium tracking-wider">or sign in with email</span>
-              </div>
-            </div>
-
-            {/* Email/Password Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="trader@riha.internal"
-                    className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-600/25 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Sign In</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
           </div>
 
-          <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-1.5 text-slate-600">
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>TLS 1.3 / Google OAuth 2.0</span>
+          {/* SECURITY & COMPLIANCE CALLOUT */}
+          <div className="p-4 rounded-2xl bg-[#0b0f19] border border-slate-800 space-y-2">
+            <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span>Strict Google SSO Authentication Policy</span>
             </div>
-            <span>RIHA Enterprise v1.0</span>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              In accordance with US institutional financial controls and SOC 2 guidelines, only authenticated Google profiles are permitted. Traditional passwords and demo logins have been decommissioned.
+            </p>
+          </div>
+
+          {/* SPATIOUS PLATFORM CAPABILITIES SUMMARY */}
+          <div className="pt-4 border-t border-slate-800/80 grid grid-cols-2 gap-3 text-[11px] text-slate-400">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>5-Node Agentic DAG</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Live Robinhood API Sync</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Autonomous Strategy Loops</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>SEC EDGAR Filings Feed</span>
+            </div>
+          </div>
+
+          {/* CARD FOOTER */}
+          <div className="pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+            <span className="flex items-center gap-1.5 text-slate-400 font-mono">
+              <Lock className="w-3.5 h-3.5 text-indigo-400" />
+              TLS 1.3 / OAuth 2.0 Encrypted
+            </span>
+            <span className="font-mono">RIHA v1.0.0</span>
           </div>
         </div>
       </div>

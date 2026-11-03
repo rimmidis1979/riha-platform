@@ -9,12 +9,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [token, setToken] = useState<string | null>(StockApiClient.getToken());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(() => {
+    return localStorage.getItem('riha_disclaimer_accepted') === 'true';
+  });
 
   useEffect(() => {
     const initAuth = async () => {
       try {
         setIsLoading(true);
         setError(null);
+
+        // Query backend disclaimer status
+        try {
+          const disc = await StockApiClient.getDisclaimerStatus();
+          setDisclaimerAccepted(disc.disclaimerAccepted);
+        } catch (e) {
+          console.warn('Disclaimer status check fallback:', e);
+        }
 
         // Check query parameters from Google OAuth redirect
         const urlParams = new URLSearchParams(window.location.search);
@@ -171,10 +182,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         buyingPower: 0.0,
         portfolioValue: 0.0,
         roles: ['ROLE_USER'],
+        disclaimerAccepted,
+        disclaimerVersion: 'v1.0',
       };
 
       setUser(googleUser);
       localStorage.setItem('riha_user_session', JSON.stringify(googleUser));
+
+      // Record in local persistent login audit ledger
+      StockApiClient.recordLocalLogin({
+        id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        email: resolvedEmail,
+        userId: googleUser.id,
+        provider: 'GOOGLE_IDENTITY_SERVICES',
+        loginTime: new Date().toISOString(),
+        ipAddress: '127.0.0.1 (Local Client)',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown Browser',
+        status: 'SUCCESS',
+        disclaimerAccepted,
+        disclaimerVersion: 'v1.0',
+      });
+
       return true;
     } catch (err: any) {
       console.error('Google login failed:', err);
@@ -212,10 +240,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         buyingPower: 0.0,
         portfolioValue: 0.0,
         roles: ['ROLE_USER'],
+        disclaimerAccepted,
+        disclaimerVersion: 'v1.0',
       };
 
       setUser(standardUser);
       localStorage.setItem('riha_user_session', JSON.stringify(standardUser));
+
+      StockApiClient.recordLocalLogin({
+        id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        email,
+        userId: standardUser.id,
+        provider: 'CREDENTIALS',
+        loginTime: new Date().toISOString(),
+        ipAddress: '127.0.0.1 (Local Client)',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown Browser',
+        status: 'SUCCESS',
+        disclaimerAccepted,
+        disclaimerVersion: 'v1.0',
+      });
+
       return true;
     } catch (err: any) {
       console.error('Credentials login failed:', err);
@@ -226,11 +270,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const acceptDisclaimer = async () => {
+    try {
+      await StockApiClient.acceptDisclaimer();
+      setDisclaimerAccepted(true);
+      if (user) {
+        const updated = { ...user, disclaimerAccepted: true, disclaimerAcceptedAt: new Date().toISOString() };
+        setUser(updated);
+        localStorage.setItem('riha_user_session', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.error('Accept disclaimer error:', e);
+      setDisclaimerAccepted(true);
+    }
+  };
+
+  const declineDisclaimer = async () => {
+    try {
+      await StockApiClient.declineDisclaimer();
+    } catch (e) {
+      console.warn('Decline disclaimer error:', e);
+    }
+    setDisclaimerAccepted(false);
+    logout();
+  };
+
   const logout = () => {
     StockApiClient.setToken(null);
     setToken(null);
     setUser(null);
     setError(null);
+    setDisclaimerAccepted(false);
     localStorage.removeItem('riha_auth_jwt');
     localStorage.removeItem('riha_user_session');
     localStorage.removeItem('riha_google_session');
@@ -300,8 +370,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         token,
         isLoading,
         error,
+        disclaimerAccepted,
         loginWithGoogle,
         loginWithCredentials,
+        acceptDisclaimer,
+        declineDisclaimer,
         logout,
         updateCashBalance,
         updateRobinhoodApiKey,

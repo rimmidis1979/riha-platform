@@ -1652,6 +1652,104 @@ public class StockAgenticWorkflowCoordinator {
         return candles;
     }
 
+    public List<StockTradeTransactionEntity> getAllTransactions() {
+        return transactionRepository.findTop150ByOrderByExecutedAtDesc();
+    }
+
+    public Map<String, Object> getPerformanceSummary() {
+        List<StockTradeTransactionEntity> txs = transactionRepository.findTop150ByOrderByExecutedAtDesc();
+        List<Map<String, Object>> owned = getOwnedPositionsList();
+
+        BigDecimal realizedPnlUsd = txs.stream()
+                .map(t -> t.getRealizedProfitLossUsd() != null ? t.getRealizedProfitLossUsd() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal unrealizedPnlUsd = owned.stream()
+                .map(p -> toBigDecimal(p.get("unrealizedPnlUsd"), BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal netPnlUsd = realizedPnlUsd.add(unrealizedPnlUsd).setScale(2, RoundingMode.HALF_UP);
+
+        long filledBuys = txs.stream().filter(t -> "BUY".equalsIgnoreCase(t.getSide()) && "FILLED".equalsIgnoreCase(t.getStatus())).count();
+        long filledSells = txs.stream().filter(t -> "SELL".equalsIgnoreCase(t.getSide()) && "FILLED".equalsIgnoreCase(t.getStatus())).count();
+        long winningTrades = txs.stream().filter(t -> t.getRealizedProfitLossUsd() != null && t.getRealizedProfitLossUsd().compareTo(BigDecimal.ZERO) > 0).count();
+        long losingTrades = txs.stream().filter(t -> t.getRealizedProfitLossUsd() != null && t.getRealizedProfitLossUsd().compareTo(BigDecimal.ZERO) < 0).count();
+        long totalCompleted = winningTrades + losingTrades;
+
+        double winRatePct = totalCompleted > 0 ? (double) winningTrades / totalCompleted * 100.0 : 0.0;
+
+        BigDecimal totalBuyVolumeUsd = txs.stream()
+                .filter(t -> "BUY".equalsIgnoreCase(t.getSide()) && "FILLED".equalsIgnoreCase(t.getStatus()))
+                .map(t -> t.getOrderPrice().multiply(BigDecimal.valueOf(t.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal totalSellVolumeUsd = txs.stream()
+                .filter(t -> "SELL".equalsIgnoreCase(t.getSide()) && "FILLED".equalsIgnoreCase(t.getStatus()))
+                .map(t -> t.getOrderPrice().multiply(BigDecimal.valueOf(t.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal totalVolumeTradedUsd = totalBuyVolumeUsd.add(totalSellVolumeUsd).setScale(2, RoundingMode.HALF_UP);
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("realizedPnlUsd", realizedPnlUsd);
+        summary.put("unrealizedPnlUsd", unrealizedPnlUsd);
+        summary.put("netPnlUsd", netPnlUsd);
+        summary.put("winRatePct", Math.round(winRatePct * 10.0) / 10.0);
+        summary.put("totalTradesCount", filledBuys + filledSells);
+        summary.put("winningTradesCount", winningTrades);
+        summary.put("losingTradesCount", losingTrades);
+        summary.put("totalBuysCount", filledBuys);
+        summary.put("totalSellsCount", filledSells);
+        summary.put("totalBuyVolumeUsd", totalBuyVolumeUsd);
+        summary.put("totalSellVolumeUsd", totalSellVolumeUsd);
+        summary.put("totalVolumeTradedUsd", totalVolumeTradedUsd);
+        summary.put("activePositionsCount", owned.size());
+        summary.put("generatedAt", Instant.now().toString());
+        return summary;
+    }
+
+    public List<Map<String, Object>> getActiveAutoLoops() {
+        List<TrackedWatchlistStockEntity> trackedList = watchlistRepository.findAll();
+        List<Map<String, Object>> activeLoops = new ArrayList<>();
+        Map<String, Integer> owned = getAllOwnedQuantities();
+
+        for (TrackedWatchlistStockEntity s : trackedList) {
+            if (Boolean.TRUE.equals(s.getActiveMonitoring())) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("ticker", s.getTicker());
+                item.put("tradingDate", s.getTradingDate());
+                item.put("activeMonitoring", true);
+                item.put("discoveryAlgorithm", s.getDiscoveryAlgorithm());
+                item.put("latestLivePrice", s.getLatestLivePrice());
+                item.put("dayChangePct", s.getDayChangePct());
+                item.put("latestRecommendation", s.getLatestRecommendation());
+                item.put("latestPredictedTarget", s.getLatestPredictedTarget());
+                item.put("predictedGainPct", s.getPredictedGainPct());
+                item.put("latestStopLossPrice", s.getLatestStopLossPrice());
+                item.put("confidenceScore", s.getLatestConfidenceScore());
+                item.put("criticVerdict", s.getCriticVerdict());
+                item.put("ownedShares", owned.getOrDefault(s.getTicker(), 0));
+                item.put("updatedAt", s.getUpdatedAt());
+                activeLoops.add(item);
+            }
+        }
+        return activeLoops;
+    }
+
+    public Map<String, Object> getStrategiesHistory() {
+        Map<String, Object> masterAudit = scannerLoop.getMasterAuditSummary("ALL");
+        List<StockTradeTransactionEntity> txs = transactionRepository.findTop150ByOrderByExecutedAtDesc();
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("masterAudit", masterAudit);
+        res.put("transactions", txs);
+        res.put("generatedAt", Instant.now().toString());
+        return res;
+    }
+
     private String getCompanyNameForTicker(String ticker) {
         if (ticker == null || ticker.isBlank()) {
             return "Common Stock";

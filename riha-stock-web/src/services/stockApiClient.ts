@@ -1,5 +1,6 @@
-import { Holding, PortfolioSummary, TradeOrder } from '../types/trading';
+import { Holding, PortfolioSummary, TradeOrder, StockTradeTransaction, AutoStrategyItem, StrategyHistoryItem, PlatformPerformanceSummary } from '../types/trading';
 import { TrendingStock, TrendingFilters, MomentumPromptDecision } from '../types/trending';
+import { LoginHistoryItem } from '../types/auth';
 
 const isBrowser = typeof window !== 'undefined';
 const AUTH_SERVICE_URL = import.meta.env.VITE_RIHA_AUTH_API_URL || (isBrowser ? '' : 'http://localhost:8080');
@@ -865,6 +866,231 @@ export class StockApiClient {
     });
     if (!res.ok) throw new Error(`Failed to update strategic loop for ${symbol}`);
     return await res.json();
+  }
+
+  // ========================================================
+  // LOGIN HISTORY & LEGAL DISCLAIMER COMPLIANCE
+  // ========================================================
+
+  public static async getLoginHistory(): Promise<LoginHistoryItem[]> {
+    try {
+      const res = await fetch(`${AUTH_SERVICE_URL}/auth/login-history`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend login-history fetch failed, reading local session ledger:', e);
+    }
+    const local = localStorage.getItem('riha_login_audit_trail');
+    return local ? JSON.parse(local) : [];
+  }
+
+  public static recordLocalLogin(item: LoginHistoryItem): void {
+    try {
+      const existing = localStorage.getItem('riha_login_audit_trail');
+      const list: LoginHistoryItem[] = existing ? JSON.parse(existing) : [];
+      const updated = [item, ...list.filter(x => x.id !== item.id)].slice(0, 100);
+      localStorage.setItem('riha_login_audit_trail', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Could not save local login history event:', e);
+    }
+  }
+
+  public static async getDisclaimerStatus(): Promise<{ disclaimerAccepted: boolean; disclaimerAcceptedAt?: string; disclaimerVersion?: string }> {
+    try {
+      const res = await fetch(`${AUTH_SERVICE_URL}/auth/disclaimer/status`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Could not query disclaimer status from auth-service:', e);
+    }
+    const localAccepted = localStorage.getItem('riha_disclaimer_accepted') === 'true';
+    const localAt = localStorage.getItem('riha_disclaimer_accepted_at') || '';
+    return {
+      disclaimerAccepted: localAccepted,
+      disclaimerAcceptedAt: localAt,
+      disclaimerVersion: 'v1.0',
+    };
+  }
+
+  public static async acceptDisclaimer(): Promise<any> {
+    try {
+      const res = await fetch(`${AUTH_SERVICE_URL}/auth/disclaimer/accept`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('riha_disclaimer_accepted', 'true');
+        localStorage.setItem('riha_disclaimer_accepted_at', new Date().toISOString());
+        return data;
+      }
+    } catch (e) {
+      console.warn('Could not post disclaimer acceptance to auth-service:', e);
+    }
+    localStorage.setItem('riha_disclaimer_accepted', 'true');
+    localStorage.setItem('riha_disclaimer_accepted_at', new Date().toISOString());
+    return { status: 'ACCEPTED', disclaimerAccepted: true };
+  }
+
+  public static async declineDisclaimer(): Promise<any> {
+    try {
+      await fetch(`${AUTH_SERVICE_URL}/auth/disclaimer/decline`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+    } catch (e) {
+      console.warn('Could not post disclaimer decline to auth-service:', e);
+    }
+    localStorage.removeItem('riha_disclaimer_accepted');
+    localStorage.removeItem('riha_disclaimer_accepted_at');
+    localStorage.removeItem('riha_auth_jwt');
+    localStorage.removeItem('riha_user_session');
+    return { status: 'DECLINED', disclaimerAccepted: false };
+  }
+
+  // ========================================================
+  // PLATFORM AUDIT, TRANSACTIONS & CUMULATIVE GAIN/LOSS
+  // ========================================================
+
+  public static async getAllTransactions(): Promise<StockTradeTransaction[]> {
+    try {
+      const res = await fetch(`${STRATEGY_SERVICE_URL}/api/v1/stock-ai/portfolio/transactions`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) return data;
+      }
+    } catch (e) {
+      console.warn('Strategy service transactions fetch notice, checking executive summary:', e);
+    }
+
+    try {
+      const execRes = await fetch(`${STRATEGY_SERVICE_URL}/api/v1/stock-ai/summary/executive`, {
+        headers: this.getHeaders(),
+      });
+      if (execRes.ok) {
+        const data = await execRes.json();
+        if (Array.isArray(data.transactions)) return data.transactions;
+      }
+    } catch (e) {
+      console.warn('Executive summary transactions fetch notice:', e);
+    }
+
+    const localHistory = localStorage.getItem('riha_trade_history');
+    if (localHistory) {
+      const parsed: TradeOrder[] = JSON.parse(localHistory);
+      return parsed.map((t) => ({
+        id: t.id,
+        ticker: t.symbol,
+        side: t.side,
+        executionMode: t.executionMode || 'ACTUAL',
+        strategyName: t.recommendationLabel || 'VWAP Reclaim & Relative Volume Breakout',
+        quantity: t.shares,
+        orderPrice: t.executionPrice || t.price || 0,
+        executedFillPrice: t.executionPrice || t.price || 0,
+        totalValue: t.totalValue,
+        realizedProfitLossUsd: t.realizedPnlUsd || 0,
+        status: t.status === 'FILLED' ? 'FILLED' : 'SUBMITTED',
+        executedAt: t.timestamp,
+      }));
+    }
+
+    return [];
+  }
+
+  public static async getPerformanceSummary(): Promise<PlatformPerformanceSummary> {
+    try {
+      const res = await fetch(`${STRATEGY_SERVICE_URL}/api/v1/stock-ai/portfolio/performance-summary`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Strategy service performance summary notice:', e);
+    }
+
+    // Calculate real cumulative metrics dynamically from actual transactions
+    const txs = await this.getAllTransactions();
+    const realized = txs.reduce((sum, t) => sum + (t.realizedProfitLossUsd || 0), 0);
+    const filledBuys = txs.filter(t => t.side === 'BUY' && t.status === 'FILLED');
+    const filledSells = txs.filter(t => t.side === 'SELL' && t.status === 'FILLED');
+    const winning = txs.filter(t => (t.realizedProfitLossUsd || 0) > 0).length;
+    const losing = txs.filter(t => (t.realizedProfitLossUsd || 0) < 0).length;
+    const completed = winning + losing;
+    const winRate = completed > 0 ? (winning / completed) * 100 : 0;
+    const buyVol = filledBuys.reduce((sum, t) => sum + ((t.orderPrice || 0) * t.quantity), 0);
+    const sellVol = filledSells.reduce((sum, t) => sum + ((t.orderPrice || 0) * t.quantity), 0);
+
+    return {
+      realizedPnlUsd: Number(realized.toFixed(2)),
+      unrealizedPnlUsd: 0.0,
+      netPnlUsd: Number(realized.toFixed(2)),
+      winRatePct: Number(winRate.toFixed(1)),
+      totalTradesCount: filledBuys.length + filledSells.length,
+      winningTradesCount: winning,
+      losingTradesCount: losing,
+      totalBuysCount: filledBuys.length,
+      totalSellsCount: filledSells.length,
+      totalBuyVolumeUsd: Number(buyVol.toFixed(2)),
+      totalSellVolumeUsd: Number(sellVol.toFixed(2)),
+      totalVolumeTradedUsd: Number((buyVol + sellVol).toFixed(2)),
+      activePositionsCount: 0,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  public static async getActiveAutoLoops(): Promise<AutoStrategyItem[]> {
+    try {
+      const res = await fetch(`${STRATEGY_SERVICE_URL}/api/v1/stock-ai/portfolio/auto-loops`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) return data;
+      }
+    } catch (e) {
+      console.warn('Strategy service auto-loops fetch notice:', e);
+    }
+    return [];
+  }
+
+  public static async getStrategiesHistory(): Promise<any> {
+    try {
+      const res = await fetch(`${STRATEGY_SERVICE_URL}/api/v1/stock-ai/portfolio/strategies-history`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Strategy service strategies-history fetch notice:', e);
+    }
+
+    try {
+      const auditRes = await fetch(`${STRATEGY_SERVICE_URL}/api/v1/stock-ai/audit-summary?window=ALL`, {
+        headers: this.getHeaders(),
+      });
+      if (auditRes.ok) {
+        const data = await auditRes.json();
+        const txs = await this.getAllTransactions();
+        return { masterAudit: data, transactions: txs };
+      }
+    } catch (e) {
+      console.warn('Audit summary fetch notice:', e);
+    }
+
+    return { masterAudit: { audits: [] }, transactions: [] };
   }
 
   // ========================================================

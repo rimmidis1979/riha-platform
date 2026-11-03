@@ -20,6 +20,7 @@ import {
 import { StrategyDiagnosticsModal } from './StrategyDiagnosticsModal';
 import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from './StrategicLoopConfigModal';
 import { VolumeStrategyModal, VolumeStrategyTarget, formatVolNumber } from './VolumeStrategyModal';
+import { StockDetailExecutionModal } from './StockDetailExecutionModal';
 
 interface HoldingsTableProps {
   onExploreTrending?: () => void;
@@ -37,6 +38,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
   const [selectedStockForStrategy, setSelectedStockForStrategy] = useState<{
     symbol: string;
     companyName: string;
+  } | null>(null);
+  const [selectedStockForExecution, setSelectedStockForExecution] = useState<{
+    symbol: string;
+    companyName: string;
+    currentPrice: number;
+    costBasis: number;
+    ownedShares: number;
+    initialMode: 'AUTO_LOOP' | 'ONE_TIME';
   } | null>(null);
   const [selectedStockForLoopConfig, setSelectedStockForLoopConfig] = useState<StrategicLoopConfigTarget | null>(null);
   const [selectedStockForVolume, setSelectedStockForVolume] = useState<VolumeStrategyTarget | null>(null);
@@ -181,11 +190,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs border ${
-                          isSchwab
-                            ? 'bg-sky-950/60 text-sky-300 border-sky-800/60'
-                            : 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
-                        }`}
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs border ${isSchwab
+                          ? 'bg-sky-950/60 text-sky-300 border-sky-800/60'
+                          : 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                          }`}
                       >
                         {holding.symbol.substring(0, 3)}
                       </div>
@@ -195,11 +203,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                             {holding.symbol}
                           </span>
                           <span
-                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase border ${
-                              isSchwab
-                                ? 'bg-sky-950/80 text-sky-300 border-sky-800/60'
-                                : 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
-                            }`}
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase border ${isSchwab
+                              ? 'bg-sky-950/80 text-sky-300 border-sky-800/60'
+                              : 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                              }`}
                           >
                             {isSchwab ? 'Schwab' : 'Robinhood'}
                           </span>
@@ -238,9 +245,8 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   {/* Total All-Time Return */}
                   <td className="py-4 px-4 text-right font-mono">
                     <div
-                      className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-md ${
-                        isTotalGainPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
-                      }`}
+                      className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-md ${isTotalGainPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
+                        }`}
                     >
                       {isTotalGainPositive ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
                       {isTotalGainPositive ? '+' : ''}${Math.abs(holding.totalGain || 0).toFixed(2)} ({isTotalGainPositive ? '+' : ''}
@@ -263,20 +269,20 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                       const volStrategyLabel = isVolSurge
                         ? 'SURGE BREAKOUT'
                         : isVolAcc
-                        ? 'ACCUMULATION'
-                        : isVolDist
-                        ? 'DISTRIBUTION'
-                        : isVolDryUp
-                        ? 'DRY-UP COIL'
-                        : 'BASELINE FLOW';
+                          ? 'ACCUMULATION'
+                          : isVolDist
+                            ? 'DISTRIBUTION'
+                            : isVolDryUp
+                              ? 'DRY-UP COIL'
+                              : 'BASELINE FLOW';
 
                       const volBadgeClass = isVolSurge || isVolAcc
                         ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/60'
                         : isVolDist
-                        ? 'bg-rose-950/70 text-rose-400 border-rose-800/60'
-                        : isVolDryUp
-                        ? 'bg-amber-950/70 text-amber-400 border-amber-800/60'
-                        : 'bg-slate-800 text-slate-300 border-slate-700';
+                          ? 'bg-rose-950/70 text-rose-400 border-rose-800/60'
+                          : isVolDryUp
+                            ? 'bg-amber-950/70 text-amber-400 border-amber-800/60'
+                            : 'bg-slate-800 text-slate-300 border-slate-700';
 
                       return (
                         <div className="flex flex-col items-center gap-1.5">
@@ -311,60 +317,49 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                     })()}
                   </td>
 
-                  {/* Run Strategic Loop Toggle & Live Recommendation Label */}
+                  {/* Dual Strategy Execution Controls: Auto Loop vs 1-Time Apply */}
                   <td className="py-4 px-4 text-center">
                     <div className="flex flex-col items-center gap-1.5">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleToggleStrategicLoop(holding)}
-                          disabled={updatingSymbol === holding.symbol}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all border ${
-                            loopActive
-                              ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70 shadow-xs'
-                              : 'bg-slate-800 text-slate-400 border-slate-700'
-                          }`}
-                          title="Continuously scan market signals and update buy/sell/hold diagnostics"
-                        >
-                          <Zap
-                            className={`w-2.5 h-2.5 ${loopActive ? 'text-emerald-400 fill-emerald-400 animate-pulse' : 'text-slate-500'}`}
-                          />
-                          <span>{loopActive ? 'Loop: ACTIVE' : 'Loop: OFF'}</span>
-                        </button>
-
+                      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                        {/* Auto Strategy Loop Button */}
                         <button
                           onClick={() =>
-                            setSelectedStockForLoopConfig({
+                            setSelectedStockForExecution({
                               symbol: holding.symbol,
                               companyName: holding.name || holding.companyName || holding.symbol,
                               currentPrice: holding.currentPrice,
-                              avgCost: holding.avgCost,
-                              shares: holding.shares,
-                              runStrategicLoop: loopActive,
-                              executionMode: execMode,
-                              targetProfitMarginPct:
-                                localOverrides[holding.symbol]?.targetProfitMarginPct ??
-                                holding.targetProfitMarginPct ??
-                                5.0,
-                              stopLossMarginPct:
-                                localOverrides[holding.symbol]?.stopLossMarginPct ??
-                                holding.stopLossMarginPct ??
-                                3.0,
-                              autoBuyEnabled:
-                                localOverrides[holding.symbol]?.autoBuyEnabled ??
-                                holding.autoBuyEnabled ??
-                                false,
-                              autoSellEnabled:
-                                localOverrides[holding.symbol]?.autoSellEnabled ??
-                                holding.autoSellEnabled ??
-                                false,
-                              maxQuantity:
-                                localOverrides[holding.symbol]?.maxQuantity ?? holding.maxQuantity ?? 1,
+                              costBasis: holding.avgCost,
+                              ownedShares: holding.shares,
+                              initialMode: 'AUTO_LOOP',
                             })
                           }
-                          className="p-1 rounded-md text-slate-400 hover:text-indigo-400 hover:bg-slate-800 border border-slate-700 transition-colors"
-                          title="Configure Gain/Loss thresholds (+Profit%, -Loss%) and Auto-Trading"
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all border ${loopActive
+                            ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/80 shadow-xs'
+                            : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-slate-700'
+                            }`}
+                          title="Open Key Stock Info & Configure Continuous Auto Strategy Loop"
                         >
-                          <SlidersHorizontal className="w-3 h-3" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${loopActive ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
+                          <span>Auto Loop {loopActive ? 'ON' : 'OFF'}</span>
+                        </button>
+
+                        {/* 1-Time Apply Strategy Button */}
+                        <button
+                          onClick={() =>
+                            setSelectedStockForExecution({
+                              symbol: holding.symbol,
+                              companyName: holding.name || holding.companyName || holding.symbol,
+                              currentPrice: holding.currentPrice,
+                              costBasis: holding.avgCost,
+                              ownedShares: holding.shares,
+                              initialMode: 'ONE_TIME',
+                            })
+                          }
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/60 transition-all flex items-center gap-1"
+                          title="Open Key Stock Info & Execute 1-Time Strategy Order"
+                        >
+                          <Zap className="w-2.5 h-2.5 text-amber-400" />
+                          <span>1-Time Strategy</span>
                         </button>
                       </div>
 
@@ -430,13 +425,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                             companyName: holding.name || holding.companyName || holding.symbol,
                           })
                         }
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 transition-all transform hover:scale-105 border ${
-                          recommendation === 'BUY'
-                            ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70 hover:bg-emerald-900/60'
-                            : recommendation === 'SELL'
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 transition-all transform hover:scale-105 border ${recommendation === 'BUY'
+                          ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70 hover:bg-emerald-900/60'
+                          : recommendation === 'SELL'
                             ? 'bg-rose-950/60 text-rose-400 border-rose-800/70 hover:bg-rose-900/60'
                             : 'bg-amber-950/60 text-amber-400 border-amber-800/70 hover:bg-amber-900/60'
-                        }`}
+                          }`}
                         title="Click to view full AI multi-strategy diagnostics and scores"
                       >
                         <Sparkles className="w-2.5 h-2.5" />
@@ -452,22 +446,20 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                       <button
                         onClick={() => handleToggleExecutionMode(holding, 'PAPERLESS')}
                         disabled={updatingSymbol === holding.symbol}
-                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
-                          execMode === 'PAPERLESS'
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
+                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${execMode === 'PAPERLESS'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                          }`}
                       >
                         Paper
                       </button>
                       <button
                         onClick={() => handleToggleExecutionMode(holding, 'ACTUAL')}
                         disabled={updatingSymbol === holding.symbol}
-                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
-                          execMode === 'ACTUAL'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
+                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${execMode === 'ACTUAL'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                          }`}
                       >
                         Actual
                       </button>
@@ -560,6 +552,23 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
           openTradeModal(stock);
         }}
       />
+
+      {/* DYNAMIC STOCK KEY INFORMATION & DUAL EXECUTION MODAL */}
+      {selectedStockForExecution && (
+        <StockDetailExecutionModal
+          isOpen={Boolean(selectedStockForExecution)}
+          symbol={selectedStockForExecution.symbol}
+          companyName={selectedStockForExecution.companyName}
+          currentPrice={selectedStockForExecution.currentPrice}
+          costBasis={selectedStockForExecution.costBasis}
+          ownedShares={selectedStockForExecution.ownedShares}
+          initialMode={selectedStockForExecution.initialMode}
+          onClose={() => setSelectedStockForExecution(null)}
+          onExecutionComplete={() => {
+            setSelectedStockForExecution(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 interface AdminHeaderProps {
-  activeTab: 'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution';
+  activeTab: 'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution' | 'audit-history';
   onToggleSidebar: () => void;
   onQuickSearchTicker?: (ticker: string) => void;
 }

@@ -91,9 +91,8 @@ export const PersonalizedWatchlist: React.FC<PersonalizedWatchlistProps> = ({ on
                     ${stock.price.toFixed(2)}
                   </div>
                   <span
-                    className={`flex items-center font-bold text-xs font-mono px-2 py-0.5 rounded-md ${
-                      isPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
-                    }`}
+                    className={`flex items-center font-bold text-xs font-mono px-2 py-0.5 rounded-md ${isPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
+                      }`}
                   >
                     {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-1" /> : <TrendingDown className="w-3.5 h-3.5 mr-1" />}
                     {isPositive ? '+' : ''}{stock.changePercent.toFixed(2)}%

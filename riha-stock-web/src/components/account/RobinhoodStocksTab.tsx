@@ -4,6 +4,7 @@ import { StrategyEngineService } from '../../services/strategyEngineService';
 import { ComprehensiveStrategyReport } from '../../types/strategyDiagnostics';
 import { StrategyDiagnosticsModal } from '../trading/StrategyDiagnosticsModal';
 import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from '../trading/StrategicLoopConfigModal';
+import { StockDetailExecutionModal } from '../trading/StockDetailExecutionModal';
 import {
   TrendingUp,
   ArrowUpRight,
@@ -108,6 +109,14 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
     companyName: string;
   } | null>(null);
   const [selectedStockForLoopConfig, setSelectedStockForLoopConfig] = useState<StrategicLoopConfigTarget | null>(null);
+  const [selectedStockForExecution, setSelectedStockForExecution] = useState<{
+    symbol: string;
+    companyName: string;
+    currentPrice: number;
+    costBasis: number;
+    ownedShares: number;
+    initialMode: 'AUTO_LOOP' | 'ONE_TIME';
+  } | null>(null);
   const [strategyReports, setStrategyReports] = useState<Record<string, ComprehensiveStrategyReport>>({});
   const [isEvaluatingStrategies, setIsEvaluatingStrategies] = useState<boolean>(false);
 
@@ -722,46 +731,46 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                                 <ExternalLink className="w-3 h-3 text-slate-500" />
                               </button>
 
-                              {/* Strategic Loop & Thresholds Controls */}
-                              <div className="flex items-center gap-1">
+                              {/* Dual Strategy Execution Controls: Auto Loop vs 1-Time Apply */}
+                              <div className="flex items-center gap-1.5 flex-wrap justify-center">
                                 <button
-                                  onClick={() => handleToggleStrategicLoop(stock)}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 border transition-all ${
+                                  onClick={() =>
+                                    setSelectedStockForExecution({
+                                      symbol: stock.symbol,
+                                      companyName: stock.companyName,
+                                      currentPrice: stock.currentPrice,
+                                      costBasis: stock.avgCost,
+                                      ownedShares: stock.shares,
+                                      initialMode: 'AUTO_LOOP',
+                                    })
+                                  }
+                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition-all ${
                                     stock.runStrategicLoop
-                                      ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70 hover:bg-emerald-900/60'
-                                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 text-slate-300'
+                                      ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/80 shadow-xs'
+                                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
                                   }`}
-                                  title={stock.runStrategicLoop ? 'Strategic Loop is ACTIVE. Click to pause.' : 'Strategic Loop is OFF. Click to activate.'}
+                                  title="Open Key Stock Info & Configure Continuous Auto Strategy Loop"
                                 >
-                                  <Zap
-                                    className={`w-2.5 h-2.5 ${
-                                      stock.runStrategicLoop ? 'text-emerald-400 fill-emerald-400 animate-pulse' : 'text-slate-500'
-                                    }`}
-                                  />
-                                  <span>{stock.runStrategicLoop ? 'Loop Active' : 'Loop Off'}</span>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${stock.runStrategicLoop ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
+                                  <span>Auto Loop {stock.runStrategicLoop ? 'ON' : 'OFF'}</span>
                                 </button>
 
                                 <button
                                   onClick={() =>
-                                    setSelectedStockForLoopConfig({
+                                    setSelectedStockForExecution({
                                       symbol: stock.symbol,
                                       companyName: stock.companyName,
                                       currentPrice: stock.currentPrice,
-                                      avgCost: stock.avgCost,
-                                      shares: stock.shares,
-                                      runStrategicLoop: stock.runStrategicLoop,
-                                      executionMode: stock.executionMode,
-                                      targetProfitMarginPct: stock.targetProfitMarginPct ?? 5.0,
-                                      stopLossMarginPct: stock.stopLossMarginPct ?? 3.0,
-                                      autoBuyEnabled: stock.autoBuyEnabled ?? false,
-                                      autoSellEnabled: stock.autoSellEnabled ?? false,
-                                      maxQuantity: stock.maxQuantity ?? 1,
+                                      costBasis: stock.avgCost,
+                                      ownedShares: stock.shares,
+                                      initialMode: 'ONE_TIME',
                                     })
                                   }
-                                  className="p-1 rounded-md text-slate-400 hover:text-indigo-400 hover:bg-slate-800 border border-slate-700 hover:border-indigo-600 transition-colors"
-                                  title="Configure Gain/Loss thresholds (+Profit%, -Loss%) and Auto-Trading"
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/60 transition-all flex items-center gap-1"
+                                  title="Open Key Stock Info & Execute 1-Time Strategy Order"
                                 >
-                                  <SlidersHorizontal className="w-3 h-3" />
+                                  <Zap className="w-2.5 h-2.5 text-amber-400" />
+                                  <span>1-Time Strategy</span>
                                 </button>
                               </div>
 
@@ -1231,6 +1240,24 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           openOrderModal(stock.symbol, stock.companyName, stock.currentPrice, stock.defaultSide);
         }}
       />
+
+      {/* DYNAMIC STOCK KEY INFORMATION & DUAL EXECUTION MODAL */}
+      {selectedStockForExecution && (
+        <StockDetailExecutionModal
+          isOpen={Boolean(selectedStockForExecution)}
+          symbol={selectedStockForExecution.symbol}
+          companyName={selectedStockForExecution.companyName}
+          currentPrice={selectedStockForExecution.currentPrice}
+          costBasis={selectedStockForExecution.costBasis}
+          ownedShares={selectedStockForExecution.ownedShares}
+          initialMode={selectedStockForExecution.initialMode}
+          onClose={() => setSelectedStockForExecution(null)}
+          onExecutionComplete={() => {
+            setSelectedStockForExecution(null);
+            loadRobinhoodStocksData();
+          }}
+        />
+      )}
     </div>
   );
 };

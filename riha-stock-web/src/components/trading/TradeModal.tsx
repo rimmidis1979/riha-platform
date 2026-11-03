@@ -128,11 +128,10 @@ export const TradeModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setSide('BUY')}
-              className={`py-2 text-xs font-bold font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                side === 'BUY'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`py-2 text-xs font-bold font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 ${side === 'BUY'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+                }`}
             >
               <ArrowUpRight className="w-3.5 h-3.5" />
               <span>BUY</span>
@@ -140,11 +139,10 @@ export const TradeModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setSide('SELL')}
-              className={`py-2 text-xs font-bold font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                side === 'SELL'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`py-2 text-xs font-bold font-mono rounded-lg transition-all flex items-center justify-center gap-1.5 ${side === 'SELL'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+                }`}
             >
               <ArrowDownRight className="w-3.5 h-3.5" />
               <span>SELL</span>
@@ -160,11 +158,10 @@ export const TradeModal: React.FC = () => {
                   key={ot}
                   type="button"
                   onClick={() => setOrderType(ot)}
-                  className={`px-3 py-1 rounded-lg font-mono font-semibold transition-all border ${
-                    orderType === ot
-                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-xs'
-                      : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
-                  }`}
+                  className={`px-3 py-1 rounded-lg font-mono font-semibold transition-all border ${orderType === ot
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-xs'
+                    : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
+                    }`}
                 >
                   {ot}
                 </button>
@@ -242,11 +239,10 @@ export const TradeModal: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting || numShares <= 0}
-            className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all flex items-center justify-center gap-2 ${
-              side === 'BUY'
-                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
-                : 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
-            } disabled:opacity-50`}
+            className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all flex items-center justify-center gap-2 ${side === 'BUY'
+              ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+              : 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
+              } disabled:opacity-50`}
           >
             {isSubmitting ? (
               <>

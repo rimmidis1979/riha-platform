@@ -11,11 +11,13 @@ import { TrendingStocksPage } from './pages/TrendingStocksPage';
 import { PersonalizedWatchlist } from './components/trending/PersonalizedWatchlist';
 import { StrategyAnalysisPage } from './pages/StrategyAnalysisPage';
 import { AgentExecutionTableView } from './pages/AgentExecutionTableView';
+import { PlatformAuditHistoryPage } from './pages/PlatformAuditHistoryPage';
+import { LegalDisclaimerModal } from './components/common/LegalDisclaimerModal';
 import { ShieldCheck, Cpu, Radio } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution'>('account');
+  const { isAuthenticated, isLoading, disclaimerAccepted } = useAuth();
+  const [activeTab, setActiveTab] = useState<'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution' | 'audit-history'>('account');
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
 
   if (isLoading) {
@@ -95,7 +97,12 @@ const MainAppContent: React.FC = () => {
               <PersonalizedWatchlist onExploreMore={() => setActiveTab('trending')} />
             </div>
           )}
+
+          {activeTab === 'audit-history' && <PlatformAuditHistoryPage />}
         </main>
+
+        {/* SEC / FINRA Mandatory Trading Legal Disclaimer Modal */}
+        <LegalDisclaimerModal isOpen={!disclaimerAccepted} />
 
         {/* CoreUI Dark Enterprise Footer */}
         <footer className="border-t border-slate-800/80 bg-[#0d121f] py-4 text-xs text-slate-500">

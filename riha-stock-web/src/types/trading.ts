@@ -87,3 +87,88 @@ export interface PortfolioSummary {
   totalReturn?: number;
   totalReturnPercent?: number;
 }
+
+export interface StockTradeTransaction {
+  id: string;
+  decisionId?: string;
+  workflowInstanceId?: string;
+  ticker: string;
+  side: 'BUY' | 'SELL';
+  executionMode: string;
+  strategyName: string;
+  promptVersion?: string;
+  quantity: number;
+  orderPrice: number;
+  executedFillPrice?: number;
+  stopLossPrice?: number;
+  predictedTargetPrice?: number;
+  realizedProfitLossUsd?: number;
+  realizedProfitLossPct?: number;
+  criticScore?: number;
+  robinhoodOrderId?: string;
+  status: string;
+  executedAt: string;
+}
+
+export interface AutoStrategyItem {
+  ticker: string;
+  tradingDate?: string;
+  activeMonitoring: boolean;
+  discoveryAlgorithm?: string;
+  latestLivePrice?: number;
+  dayChangePct?: number;
+  latestRecommendation?: string;
+  latestPredictedTarget?: number;
+  predictedGainPct?: number;
+  latestStopLossPrice?: number;
+  confidenceScore?: number;
+  criticVerdict?: string;
+  ownedShares?: number;
+  costBasis?: number;
+  targetProfitMarginPct?: number;
+  stopLossMarginPct?: number;
+  executionMode?: 'PAPERLESS' | 'ACTUAL';
+  autoBuyEnabled?: boolean;
+  autoSellEnabled?: boolean;
+  updatedAt?: string;
+}
+
+export interface StrategyHistoryItem {
+  auditId: string;
+  batchScanId?: string;
+  timeWindow?: string;
+  workflowInstanceId?: string;
+  ticker: string;
+  strategyApplied: string;
+  promptVersion?: string;
+  aiRecommendation: 'BUY' | 'SELL' | 'HOLD';
+  limitPrice?: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+  quantity?: number;
+  aiReasoningSummary?: string;
+  criticSpelVerdict: string;
+  criticConvergenceScore?: number;
+  criticRemediationReason?: string;
+  executionStatus: string;
+  fillPrice?: number;
+  realizedUnrealizedPnl?: number;
+  auditedAt: string;
+}
+
+export interface PlatformPerformanceSummary {
+  realizedPnlUsd: number;
+  unrealizedPnlUsd: number;
+  netPnlUsd: number;
+  winRatePct: number;
+  totalTradesCount: number;
+  winningTradesCount: number;
+  losingTradesCount: number;
+  totalBuysCount: number;
+  totalSellsCount: number;
+  totalBuyVolumeUsd: number;
+  totalSellVolumeUsd: number;
+  totalVolumeTradedUsd: number;
+  activePositionsCount: number;
+  generatedAt: string;
+}

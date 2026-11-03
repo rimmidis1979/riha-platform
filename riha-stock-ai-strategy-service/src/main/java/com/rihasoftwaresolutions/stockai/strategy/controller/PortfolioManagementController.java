@@ -1,5 +1,6 @@
 package com.rihasoftwaresolutions.stockai.strategy.controller;
 
+import com.rihasoftwaresolutions.stockai.strategy.entity.StockTradeTransactionEntity;
 import com.rihasoftwaresolutions.stockai.strategy.exception.InsufficientOwnedSharesException;
 import com.rihasoftwaresolutions.stockai.strategy.service.StockAgenticWorkflowCoordinator;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,6 +39,30 @@ public class PortfolioManagementController {
     @Operation(summary = "Get list of currently owned positions (ownedQuantity > 0)")
     public ResponseEntity<List<Map<String, Object>>> getPositions() {
         return ResponseEntity.ok(workflowCoordinator.getOwnedPositionsList());
+    }
+
+    @GetMapping("/transactions")
+    @Operation(summary = "Get immutable ledger of all stock trade transactions executed on platform")
+    public ResponseEntity<List<StockTradeTransactionEntity>> getTransactions() {
+        return ResponseEntity.ok(workflowCoordinator.getAllTransactions());
+    }
+
+    @GetMapping("/performance-summary")
+    @Operation(summary = "Get cumulative realized/unrealized profit loss and platform trading KPIs till date")
+    public ResponseEntity<Map<String, Object>> getPerformanceSummary() {
+        return ResponseEntity.ok(workflowCoordinator.getPerformanceSummary());
+    }
+
+    @GetMapping("/auto-loops")
+    @Operation(summary = "Get all stocks with active autonomous strategy monitoring loops")
+    public ResponseEntity<List<Map<String, Object>>> getActiveAutoLoops() {
+        return ResponseEntity.ok(workflowCoordinator.getActiveAutoLoops());
+    }
+
+    @GetMapping("/strategies-history")
+    @Operation(summary = "Get history of all AI strategies applied on stocks till date")
+    public ResponseEntity<Map<String, Object>> getStrategiesHistory() {
+        return ResponseEntity.ok(workflowCoordinator.getStrategiesHistory());
     }
 
     @PostMapping("/orders")
