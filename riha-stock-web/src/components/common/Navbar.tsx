@@ -34,54 +34,53 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     icon: React.ReactNode;
     badge?: React.ReactNode;
   }[] = [
-    {
-      id: 'account',
-      label: 'My Account',
-      icon: <UserIcon className="w-4 h-4" />,
-    },
-    {
-      id: 'trending',
-      label: 'Trending Stocks',
-      icon: <Flame className="w-4 h-4 text-amber-500" />,
-    },
-    {
-      id: 'strategies',
-      label: 'Strategy Diagnostics',
-      icon: <Layers className="w-4 h-4 text-indigo-500" />,
-      badge: (
-        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-100/80 text-blue-700 tracking-wide">
-          AI
-        </span>
-      ),
-    },
-    {
-      id: 'agent-execution',
-      label: 'Agent Execution',
-      icon: <Workflow className="w-4 h-4 text-purple-500" />,
-      badge: (
-        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-purple-100/80 text-purple-700 tracking-wide">
-          Trace
-        </span>
-      ),
-    },
-    {
-      id: 'watchlist',
-      label: 'Personalized Watchlist',
-      icon: (
-        <Star
-          className={`w-4 h-4 ${
-            personalizedWatchlist.length > 0 ? 'text-amber-500 fill-amber-500' : 'text-slate-400'
-          }`}
-        />
-      ),
-      badge:
-        personalizedWatchlist.length > 0 ? (
-          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800">
-            {personalizedWatchlist.length}
+      {
+        id: 'account',
+        label: 'My Account',
+        icon: <UserIcon className="w-4 h-4" />,
+      },
+      {
+        id: 'trending',
+        label: 'Trending Stocks',
+        icon: <Flame className="w-4 h-4 text-amber-500" />,
+      },
+      {
+        id: 'strategies',
+        label: 'Strategy Diagnostics',
+        icon: <Layers className="w-4 h-4 text-indigo-500" />,
+        badge: (
+          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-100/80 text-blue-700 tracking-wide">
+            AI
           </span>
-        ) : undefined,
-    },
-  ];
+        ),
+      },
+      {
+        id: 'agent-execution',
+        label: 'Agent Execution',
+        icon: <Workflow className="w-4 h-4 text-purple-500" />,
+        badge: (
+          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-purple-100/80 text-purple-700 tracking-wide">
+            Trace
+          </span>
+        ),
+      },
+      {
+        id: 'watchlist',
+        label: 'Personalized Watchlist',
+        icon: (
+          <Star
+            className={`w-4 h-4 ${personalizedWatchlist.length > 0 ? 'text-amber-500 fill-amber-500' : 'text-slate-400'
+              }`}
+          />
+        ),
+        badge:
+          personalizedWatchlist.length > 0 ? (
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800">
+              {personalizedWatchlist.length}
+            </span>
+          ) : undefined,
+      },
+    ];
 
   const handleTabClick = (id: 'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution') => {
     setActiveTab(id);
@@ -130,11 +129,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                   <button
                     key={item.id}
                     onClick={() => handleTabClick(item.id)}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      isActive
-                        ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                    }`}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                      }`}
                   >
                     {item.icon}
                     <span>{item.label}</span>
@@ -154,11 +152,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                   key={item.id}
                   onClick={() => handleTabClick(item.id)}
                   title={item.label}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
                 >
                   {item.icon}
                   <span className="hidden lg:inline">{item.label}</span>
@@ -256,11 +253,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                 <button
                   key={item.id}
                   onClick={() => handleTabClick(item.id)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
+                  className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${isActive
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     {item.icon}

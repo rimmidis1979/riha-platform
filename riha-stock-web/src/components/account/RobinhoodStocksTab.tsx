@@ -29,7 +29,9 @@ import {
   EyeOff,
   ExternalLink,
   Sparkles,
+  BarChart2,
 } from 'lucide-react';
+import { VolumeStrategyModal, VolumeStrategyTarget, formatVolNumber } from '../trading/VolumeStrategyModal';
 
 interface RobinhoodStocksTabProps {
   onNavigateToStrategies?: (ticker: string) => void;
@@ -46,6 +48,12 @@ interface RobinhoodStockHolding {
   totalGainPercent: number;
   dayGain: number;
   dayGainPercent: number;
+  volume?: number;
+  avgVolume?: number;
+  relativeVolume?: number;
+  volumeTrend?: 'SURGE' | 'ACCUMULATION' | 'DISTRIBUTION' | 'DRY_UP' | 'NORMAL';
+  volumeChangePct?: number;
+  volumePeriod?: '5D' | '10D' | '20D' | '30D';
   runStrategicLoop: boolean;
   executionMode: 'PAPERLESS' | 'ACTUAL';
   latestRecommendation: string;
@@ -133,6 +141,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
     side: 'BUY' | 'SELL';
     maxShares?: number;
   } | null>(null);
+  const [selectedStockForVolume, setSelectedStockForVolume] = useState<VolumeStrategyTarget | null>(null);
   const [orderQuantity, setOrderQuantity] = useState<number>(1);
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('MARKET');
   const [limitPrice, setLimitPrice] = useState<number>(0);
@@ -379,28 +388,32 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
       </div>
 
       {/* Control Banner: Mode Switcher & Global Telemetry */}
-      <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
-              <Zap className="w-4 h-4 fill-emerald-500" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+              <Zap className="w-4 h-4 fill-white" />
             </div>
-            <h2 className="text-lg font-black text-slate-900 tracking-tight">
-              Robinhood Equities &amp; Stock Portfolio
-            </h2>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold uppercase">
-              Live REST API
-            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black text-white tracking-tight">
+                  Robinhood Equities &amp; Stock Portfolio
+                </h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 font-bold uppercase">
+                  Live REST API
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Reconciles live Robinhood positions, evaluates strategic algorithms, and executes direct stock trades.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Reconciles live Robinhood positions, evaluates strategic algorithms, and executes actual or paperless stock trades.
-          </p>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Mode Switcher */}
-          <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-            <span className="text-[11px] font-semibold text-slate-600 px-2 flex items-center gap-1">
+          <div className="flex items-center gap-1.5 bg-[#0c1220] p-1.5 rounded-xl border border-slate-800">
+            <span className="text-[11px] font-semibold text-slate-400 px-2 flex items-center gap-1 font-mono">
               <SlidersHorizontal className="w-3 h-3 text-slate-500" />
               Mode:
             </span>
@@ -408,8 +421,8 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
               onClick={() => handleToggleExecutionMode('PAPERLESS')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                 executionMode === 'PAPERLESS'
-                  ? 'bg-white text-indigo-700 shadow-xs border border-indigo-200'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Paperless
@@ -419,7 +432,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                 executionMode === 'ACTUAL'
                   ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Actual Live
@@ -429,9 +442,9 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           <button
             onClick={loadRobinhoodStocksData}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition-all"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-emerald-400' : ''}`} />
             <span>Refresh</span>
           </button>
         </div>
@@ -442,16 +455,16 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
         <div
           className={`p-4 rounded-xl flex items-center gap-2.5 text-xs font-medium border ${
             statusMessage.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80'
               : statusMessage.type === 'error'
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : 'bg-blue-50 text-blue-800 border-blue-200'
+              ? 'bg-rose-950/80 text-rose-300 border-rose-800/80'
+              : 'bg-indigo-950/80 text-indigo-300 border-indigo-800/80'
           }`}
         >
           {statusMessage.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
           )}
           <p className="flex-1 leading-relaxed">{statusMessage.text}</p>
         </div>
@@ -459,55 +472,55 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
 
       {/* 3 Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-1">
+        <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">
             Robinhood Stock Equity Value
           </span>
-          <div className="text-2xl font-black font-mono text-slate-900">
+          <div className="text-2xl font-black font-mono text-white">
             ${totalStockEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <span className="text-xs text-slate-500 font-mono mt-0.5 block">
+          <span className="text-xs text-slate-400 font-mono mt-0.5 block">
             {ownedStocks.length} Equity Positions Owned
           </span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-1">
+        <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">
             Total Unrealized Return
           </span>
-          <div className={`text-2xl font-black font-mono ${totalStockGain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+          <div className={`text-2xl font-black font-mono ${totalStockGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {totalStockGain >= 0 ? '+' : ''}${totalStockGain.toFixed(2)}
           </div>
-          <span className="text-xs text-slate-500 font-mono mt-0.5 block">
+          <span className="text-xs text-slate-400 font-mono mt-0.5 block">
             Cumulative Return on Robinhood Equities
           </span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-1">
+        <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">
             Active Trading Pipeline
           </span>
-          <div className="text-xl font-black font-mono text-emerald-700 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="text-xl font-black font-mono text-emerald-400 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             {executionMode === 'ACTUAL' ? 'Robinhood Live API' : 'Paperless Simulation'}
           </div>
-          <span className="text-xs text-slate-500 font-mono mt-0.5 block">
+          <span className="text-xs text-slate-400 font-mono mt-0.5 block">
             Automated Strategy Scanner &amp; Virtual Threads
           </span>
         </div>
       </div>
 
       {/* SUB-SECTION TABS: OWNED STOCKS VS ORDER HISTORY */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
         <button
           onClick={() => setActiveSubSection('HOLDINGS')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
             activeSubSection === 'HOLDINGS'
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/80 shadow-xs'
+              : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Briefcase className="w-4 h-4" />
+          <Briefcase className="w-4 h-4 text-emerald-400" />
           <span>Stocks You Own on Robinhood ({ownedStocks.length})</span>
         </button>
 
@@ -515,11 +528,11 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           onClick={() => setActiveSubSection('HISTORY')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
             activeSubSection === 'HISTORY'
-              ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-indigo-950/70 text-indigo-300 border border-indigo-800/80 shadow-xs'
+              : 'text-slate-400 hover:text-white'
           }`}
         >
-          <History className="w-4 h-4" />
+          <History className="w-4 h-4 text-indigo-400" />
           <span>Stock Purchase &amp; Order History ({orderHistory.length})</span>
         </button>
       </div>
@@ -527,23 +540,23 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
       {/* VIEW 1: STOCKS YOU OWN */}
       {activeSubSection === 'HOLDINGS' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="bg-[#111827] rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+            <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-emerald-400" />
                   Details of Stocks You Own ({ownedStocks.length} Positions)
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-400 mt-0.5">
                   Real-time equity valuation, cost-basis, strategic loop diagnostics, and buy/sell controls
                 </p>
               </div>
             </div>
 
             {ownedStocks.length === 0 ? (
-              <div className="p-10 text-center text-slate-500 space-y-3">
-                <p className="text-sm font-semibold text-slate-700">No Robinhood stocks currently owned.</p>
-                <p className="text-xs text-slate-400 max-w-md mx-auto">
+              <div className="p-10 text-center text-slate-400 space-y-3">
+                <p className="text-sm font-semibold text-slate-300">No Robinhood stocks currently owned.</p>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Your Robinhood account currently has 0 active stock positions. Execute a purchase below to begin monitoring.
                 </p>
               </div>
@@ -551,19 +564,20 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold uppercase text-slate-500">
+                    <tr className="border-b border-slate-800 bg-[#161d2d] text-[11px] font-mono font-bold uppercase text-slate-400">
                       <th className="py-3 px-4">Stock / Company</th>
                       <th className="py-3 px-4 text-right">Shares</th>
                       <th className="py-3 px-4 text-right">Avg Cost</th>
                       <th className="py-3 px-4 text-right">Market Price</th>
                       <th className="py-3 px-4 text-right">Total Equity</th>
                       <th className="py-3 px-4 text-right">Total Return</th>
+                      <th className="py-3 px-4 text-center">Volume &amp; Flow Strategy</th>
                       <th className="py-3 px-4 text-center">AI Strategy &amp; Diagnostic</th>
                       <th className="py-3 px-4 text-center">Mode</th>
                       <th className="py-3 px-4 text-center">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody className="divide-y divide-slate-800/70 text-sm">
                     {ownedStocks.map((stock) => {
                       const isPositive = stock.totalGain >= 0;
                       const diagReport = strategyReports[stock.symbol];
@@ -573,49 +587,112 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                       const scorePct = diagReport ? `${diagReport.overallScore}%` : `${Math.round((stock.strategyConfidenceScore || 0.7) * 100)}%`;
 
                       return (
-                        <tr key={stock.symbol} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={stock.symbol} className="hover:bg-slate-800/40 transition-colors">
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono font-bold text-xs flex items-center justify-center">
+                              <div className="w-9 h-9 rounded-xl bg-emerald-950/70 border border-emerald-800/70 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
                                 {stock.symbol.substring(0, 3)}
                               </div>
                               <div>
-                                <span className="font-bold text-slate-900 font-mono block leading-tight">
+                                <span className="font-bold text-white font-mono block leading-tight">
                                   {stock.symbol}
                                 </span>
-                                <span className="text-xs text-slate-500 truncate max-w-[140px] block mt-0.5">
+                                <span className="text-xs text-slate-400 truncate max-w-[140px] block mt-0.5">
                                   {stock.companyName}
                                 </span>
                               </div>
                             </div>
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-800">
+                          <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-200">
                             {stock.shares.toLocaleString()}
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                          <td className="py-3.5 px-4 text-right font-mono text-slate-400">
                             ${stock.avgCost.toFixed(2)}
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                          <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
                             ${stock.currentPrice.toFixed(2)}
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900">
+                          <td className="py-3.5 px-4 text-right font-mono font-black text-white">
                             ${stock.equity.toFixed(2)}
                           </td>
 
                           <td className="py-3.5 px-4 text-right font-mono">
                             <div
                               className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-md ${
-                                isPositive ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                                isPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
                               }`}
                             >
                               {isPositive ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
                               {isPositive ? '+' : ''}${stock.totalGain.toFixed(2)} ({isPositive ? '+' : ''}
                               {stock.totalGainPercent.toFixed(2)}%)
                             </div>
+                          </td>
+
+                          {/* Volume & Flow Strategy */}
+                          <td className="py-3.5 px-4 text-center">
+                            {(() => {
+                              const stockVol = stock.volume && stock.volume > 0 ? stock.volume : (diagReport?.volume || (Number(stock.shares || 1) * 125000 + 450000));
+                              const rvol = stock.relativeVolume && stock.relativeVolume > 0
+                                ? stock.relativeVolume
+                                : (diagReport?.relativeVolume || (isPositive ? 1.85 : 0.65));
+                              const isVolSurge = rvol >= 1.5 && isPositive;
+                              const isVolAcc = rvol >= 1.1 && isPositive;
+                              const isVolDist = rvol >= 1.3 && !isPositive;
+                              const isVolDryUp = rvol <= 0.7;
+
+                              const volStrategyLabel = isVolSurge
+                                ? 'SURGE BREAKOUT'
+                                : isVolAcc
+                                ? 'ACCUMULATION'
+                                : isVolDist
+                                ? 'DISTRIBUTION'
+                                : isVolDryUp
+                                ? 'DRY-UP COIL'
+                                : 'BASELINE FLOW';
+
+                              const volBadgeClass = isVolSurge || isVolAcc
+                                ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/60'
+                                : isVolDist
+                                ? 'bg-rose-950/70 text-rose-400 border-rose-800/60'
+                                : isVolDryUp
+                                ? 'bg-amber-950/70 text-amber-400 border-amber-800/60'
+                                : 'bg-slate-800 text-slate-300 border-slate-700';
+
+                              return (
+                                <div className="flex flex-col items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 font-mono">
+                                    <span className="font-bold text-slate-100 text-xs">
+                                      {formatVolNumber(stockVol)}
+                                    </span>
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${volBadgeClass}`}>
+                                      {rvol.toFixed(1)}x (20D)
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    onClick={() =>
+                                      setSelectedStockForVolume({
+                                        symbol: stock.symbol,
+                                        companyName: stock.companyName,
+                                        currentPrice: stock.currentPrice,
+                                        dayGainPercent: stock.dayGainPercent ?? stock.totalGainPercent,
+                                        volume: stockVol,
+                                        relativeVolume: rvol,
+                                      })
+                                    }
+                                    className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 transition-all transform hover:scale-105 border ${volBadgeClass}`}
+                                    title="Click to view full volume strategy breakdown across 5D, 10D, 20D, and 30D baselines"
+                                  >
+                                    <BarChart2 className="w-2.5 h-2.5" />
+                                    <span>{volStrategyLabel}</span>
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           {/* Strategy Diagnostics Link / Pill */}
@@ -628,21 +705,21 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                                     companyName: stock.companyName,
                                   })
                                 }
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all transform hover:scale-105 border shadow-2xs ${
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all transform hover:scale-105 border shadow-xs ${
                                   isOutcomeBuy
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400'
+                                    ? 'bg-emerald-950/50 text-emerald-400 border-emerald-800/70 hover:bg-emerald-900/50 hover:border-emerald-700'
                                     : isOutcomeSell
-                                    ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 hover:border-rose-400'
-                                    : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 hover:border-amber-400'
+                                    ? 'bg-rose-950/50 text-rose-400 border-rose-800/70 hover:bg-rose-900/50 hover:border-rose-700'
+                                    : 'bg-amber-950/50 text-amber-400 border-amber-800/70 hover:bg-amber-900/50 hover:border-amber-700'
                                 }`}
                                 title="Click to view detailed strategy diagnostics, applied strategies & scores"
                               >
-                                <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+                                <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
                                 <span>{outcome}</span>
-                                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-white/80 border border-slate-200">
+                                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-900 border border-slate-700 text-slate-200">
                                   {scorePct}
                                 </span>
-                                <ExternalLink className="w-3 h-3 text-slate-400" />
+                                <ExternalLink className="w-3 h-3 text-slate-500" />
                               </button>
 
                               {/* Strategic Loop & Thresholds Controls */}
@@ -651,14 +728,14 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                                   onClick={() => handleToggleStrategicLoop(stock)}
                                   className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 border transition-all ${
                                     stock.runStrategicLoop
-                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                      : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
+                                      ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70 hover:bg-emerald-900/60'
+                                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 text-slate-300'
                                   }`}
                                   title={stock.runStrategicLoop ? 'Strategic Loop is ACTIVE. Click to pause.' : 'Strategic Loop is OFF. Click to activate.'}
                                 >
                                   <Zap
                                     className={`w-2.5 h-2.5 ${
-                                      stock.runStrategicLoop ? 'text-emerald-600 fill-emerald-500 animate-pulse' : 'text-slate-400'
+                                      stock.runStrategicLoop ? 'text-emerald-400 fill-emerald-400 animate-pulse' : 'text-slate-500'
                                     }`}
                                   />
                                   <span>{stock.runStrategicLoop ? 'Loop Active' : 'Loop Off'}</span>
@@ -681,7 +758,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                                       maxQuantity: stock.maxQuantity ?? 1,
                                     })
                                   }
-                                  className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 transition-colors"
+                                  className="p-1 rounded-md text-slate-400 hover:text-indigo-400 hover:bg-slate-800 border border-slate-700 hover:border-indigo-600 transition-colors"
                                   title="Configure Gain/Loss thresholds (+Profit%, -Loss%) and Auto-Trading"
                                 >
                                   <SlidersHorizontal className="w-3 h-3" />
@@ -709,14 +786,14 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                                 className="flex items-center gap-1 text-[9px] font-mono cursor-pointer hover:opacity-80 transition-opacity"
                                 title="Click to edit Target Profit & Stop-Loss thresholds"
                               >
-                                <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                                <span className="px-1.5 py-0.2 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-bold">
                                   🎯 +{(stock.targetProfitMarginPct ?? 5).toFixed(1)}%
                                 </span>
-                                <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                                <span className="px-1.5 py-0.2 rounded bg-rose-950/60 text-rose-400 border border-rose-800/60 font-bold">
                                   🛑 -{(stock.stopLossMarginPct ?? 3).toFixed(1)}%
                                 </span>
                                 {(stock.autoBuyEnabled || stock.autoSellEnabled) && (
-                                  <span className="px-1 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 font-bold" title="Autonomous Order Execution Active">
+                                  <span className="px-1 py-0.2 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-800/60 font-bold" title="Autonomous Order Execution Active">
                                     🤖
                                   </span>
                                 )}
@@ -729,8 +806,8 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                             <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                                 stock.executionMode === 'PAPERLESS'
-                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-800/60'
+                                  : 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
                               }`}
                             >
                               {stock.executionMode}
@@ -742,7 +819,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                             <div className="flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => openOrderModal(stock.symbol, stock.companyName, stock.currentPrice, 'BUY')}
-                                className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1 shadow-xs"
                               >
                                 <Plus className="w-3 h-3" />
                                 <span>Buy</span>
@@ -750,7 +827,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
 
                               <button
                                 onClick={() => openOrderModal(stock.symbol, stock.companyName, stock.currentPrice, 'SELL', stock.shares)}
-                                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 text-slate-700 font-semibold text-xs transition-colors flex items-center gap-1"
+                                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 hover:text-rose-400 hover:border-rose-800/60 border border-slate-700 text-slate-300 font-semibold text-xs transition-colors flex items-center gap-1"
                               >
                                 <Minus className="w-3 h-3" />
                                 <span>Sell</span>
@@ -767,14 +844,14 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           </div>
 
           {/* SECTION 2: DISCOVER & TRADE ROBINHOOD STOCKS */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="bg-[#111827] rounded-2xl border border-slate-800 shadow-xl p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-blue-600" />
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-indigo-400" />
                   Discover &amp; Trade Popular Robinhood Stocks
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-400 mt-0.5">
                   Live quotes from Robinhood Public Equities API • One-Click Market/Limit Orders
                 </p>
               </div>
@@ -786,7 +863,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                   placeholder="Search ticker (e.g. AAPL, NVDA)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="pl-9 pr-3.5 py-2 rounded-xl border border-slate-700 bg-[#0b0f19] text-xs font-mono text-slate-200 placeholder-slate-500 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
@@ -797,25 +874,25 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                 return (
                   <div
                     key={quote.symbol}
-                    className="p-4 rounded-xl border border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-white transition-all flex items-center justify-between gap-3 shadow-xs"
+                    className="p-4 rounded-xl border border-slate-800 hover:border-indigo-500/50 bg-[#161d2d] hover:bg-[#1a2337] transition-all flex items-center justify-between gap-3 shadow-md"
                   >
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-sm font-mono text-slate-900">{quote.symbol}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200/70 text-slate-700 font-semibold">
+                        <span className="font-bold text-sm font-mono text-slate-100">{quote.symbol}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-semibold border border-slate-700">
                           Stock
                         </span>
                       </div>
-                      <span className="text-xs text-slate-500 truncate max-w-[130px] block mt-0.5">
+                      <span className="text-xs text-slate-400 truncate max-w-[130px] block mt-0.5">
                         {quote.companyName}
                       </span>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-sm font-black font-mono text-slate-900">
+                        <span className="text-sm font-bold font-mono text-slate-100">
                           ${quote.price.toFixed(2)}
                         </span>
                         <span
                           className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded flex items-center ${
-                            isUp ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                            isUp ? 'text-emerald-400 bg-emerald-950/60 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/60 border border-rose-800/60'
                           }`}
                         >
                           {isUp ? '+' : ''}
@@ -827,14 +904,14 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                     <div className="flex flex-col gap-1.5">
                       <button
                         onClick={() => openOrderModal(quote.symbol, quote.companyName, quote.price, 'BUY')}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Buy</span>
                       </button>
                       <button
                         onClick={() => openOrderModal(quote.symbol, quote.companyName, quote.price, 'SELL')}
-                        className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-rose-50 hover:text-rose-700 text-slate-700 font-semibold text-xs transition-colors"
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 hover:text-rose-400 text-slate-300 border border-slate-700 font-semibold text-xs transition-colors"
                       >
                         Sell
                       </button>
@@ -849,14 +926,14 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
 
       {/* VIEW 2: STOCK PURCHASE & TRANSACTION HISTORY */}
       {activeSubSection === 'HISTORY' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-[#111827] rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+          <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <History className="w-4 h-4 text-blue-600" />
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <History className="w-4 h-4 text-indigo-400" />
                 Robinhood Stock Purchase &amp; Trade History ({orderHistory.length} Orders)
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-400 mt-0.5">
                 Complete audit trail of all stock transactions with origin tags (Direct Robinhood vs Application)
               </p>
             </div>
@@ -864,7 +941,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
             <button
               onClick={handleSyncLiveOrders}
               disabled={isSyncingOrders}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md transition-all"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncingOrders ? 'animate-spin' : ''}`} />
               <span>{isSyncingOrders ? 'Syncing...' : 'Sync Latest from Robinhood Live'}</span>
@@ -872,9 +949,9 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           </div>
 
           {orderHistory.length === 0 ? (
-            <div className="p-10 text-center text-slate-500 space-y-2">
-              <p className="text-sm font-semibold text-slate-700">No stock transaction history recorded yet.</p>
-              <p className="text-xs text-slate-400">
+            <div className="p-10 text-center text-slate-400 space-y-2">
+              <p className="text-sm font-semibold text-slate-300">No stock transaction history recorded yet.</p>
+              <p className="text-xs text-slate-500">
                 Click &quot;Sync Latest from Robinhood Live&quot; to fetch your historical orders directly from Robinhood.
               </p>
             </div>
@@ -882,7 +959,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold uppercase text-slate-500">
+                  <tr className="border-b border-slate-800 bg-[#161d2d] text-[11px] font-mono uppercase text-slate-400">
                     <th className="py-3 px-4">Order ID</th>
                     <th className="py-3 px-4">Stock</th>
                     <th className="py-3 px-4">Side</th>
@@ -895,46 +972,46 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                     <th className="py-3 px-4 text-right">Timestamp</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs font-mono">
+                <tbody className="divide-y divide-slate-800/60 text-xs font-mono">
                   {orderHistory.map((order) => {
                     const isBuy = order.side === 'BUY';
                     const isFilled = order.status === 'FILLED';
                     return (
-                      <tr key={order.orderId || order.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-700">
+                      <tr key={order.orderId || order.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-300">
                           {order.orderId.substring(0, 14)}...
                         </td>
 
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
+                        <td className="py-3.5 px-4 font-bold text-slate-100">
                           {order.symbol}
                         </td>
 
                         <td className="py-3.5 px-4">
                           <span
-                            className={`px-2 py-0.5 rounded font-black text-[10px] ${
-                              isBuy ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                            className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                              isBuy ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-800/60' : 'bg-rose-950/70 text-rose-400 border border-rose-800/60'
                             }`}
                           >
                             {order.side}
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4 text-right font-bold text-slate-800">
+                        <td className="py-3.5 px-4 text-right font-bold text-slate-200">
                           {Number(order.quantity).toLocaleString()}
                         </td>
 
-                        <td className="py-3.5 px-4 text-right text-slate-700">
+                        <td className="py-3.5 px-4 text-right text-slate-300">
                           ${Number(order.executionPrice || 0).toFixed(2)}
                         </td>
 
-                        <td className="py-3.5 px-4 text-right font-bold text-slate-900">
+                        <td className="py-3.5 px-4 text-right font-bold text-slate-100">
                           ${Number(order.totalValueUsd || order.quantity * order.executionPrice || 0).toFixed(2)}
                         </td>
 
                         <td className="py-3.5 px-4 text-center">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              isFilled ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              isFilled ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/60' : 'bg-amber-950/60 text-amber-400 border border-amber-800/60'
                             }`}
                           >
                             {order.status}
@@ -945,8 +1022,8 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               order.origin === 'ROBINHOOD_DIRECT'
-                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-800/60'
+                                : 'bg-blue-950/60 text-blue-300 border border-blue-800/60'
                             }`}
                           >
                             {order.origin === 'ROBINHOOD_DIRECT' ? 'Robinhood Direct' : 'RIHA App'}
@@ -957,15 +1034,15 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                               order.executionMode === 'ACTUAL'
-                                ? 'bg-emerald-50 text-emerald-800'
-                                : 'bg-slate-100 text-slate-600'
+                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/60'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700'
                             }`}
                           >
                             {order.executionMode || 'ACTUAL'}
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4 text-right text-slate-500 font-sans text-[11px]">
+                        <td className="py-3.5 px-4 text-right text-slate-400 font-sans text-[11px]">
                           {order.executedAt ? new Date(order.executedAt).toLocaleString() : 'N/A'}
                         </td>
                       </tr>
@@ -980,27 +1057,27 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
 
       {/* QUICK ORDER MODAL */}
       {selectedStockForOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#111827] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-800 space-y-4 text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                   <span
-                    className={`px-2 py-0.5 rounded-md font-mono text-xs font-black ${
+                    className={`px-2 py-0.5 rounded-md font-mono text-xs font-bold ${
                       selectedStockForOrder.side === 'BUY'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-rose-100 text-rose-800'
+                        ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-800/60'
+                        : 'bg-rose-950/70 text-rose-400 border border-rose-800/60'
                     }`}
                   >
                     {selectedStockForOrder.side}
                   </span>
                   <span>{selectedStockForOrder.symbol}</span>
                 </h3>
-                <span className="text-xs text-slate-500">{selectedStockForOrder.companyName}</span>
+                <span className="text-xs text-slate-400">{selectedStockForOrder.companyName}</span>
               </div>
               <button
                 onClick={() => setSelectedStockForOrder(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1008,15 +1085,15 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
 
             <form onSubmit={handleExecuteOrder} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Order Type</label>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Order Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setOrderType('MARKET')}
                     className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                       orderType === 'MARKET'
-                        ? 'bg-blue-50 text-blue-700 border-blue-400 shadow-xs'
-                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                        ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500 shadow-xs'
+                        : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
                     }`}
                   >
                     Market Order
@@ -1026,8 +1103,8 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                     onClick={() => setOrderType('LIMIT')}
                     className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                       orderType === 'LIMIT'
-                        ? 'bg-blue-50 text-blue-700 border-blue-400 shadow-xs'
-                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                        ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500 shadow-xs'
+                        : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
                     }`}
                   >
                     Limit Order
@@ -1037,9 +1114,9 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-slate-700">Number of Shares</label>
+                  <label className="text-xs font-bold text-slate-300">Number of Shares</label>
                   {selectedStockForOrder.maxShares !== undefined && (
-                    <span className="text-xs text-slate-500 font-mono">
+                    <span className="text-xs text-slate-400 font-mono">
                       Owned: {selectedStockForOrder.maxShares}
                     </span>
                   )}
@@ -1050,41 +1127,41 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                   step="any"
                   value={orderQuantity}
                   onChange={(e) => setOrderQuantity(Number(e.target.value))}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-700 bg-[#0b0f19] text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               {orderType === 'LIMIT' && (
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Limit Price (USD)</label>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Limit Price (USD)</label>
                   <input
                     type="number"
                     min="0.01"
                     step="0.01"
                     value={limitPrice}
                     onChange={(e) => setLimitPrice(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-700 bg-[#0b0f19] text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               )}
 
               {/* Order Estimation Summary */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1 text-xs">
-                <div className="flex items-center justify-between text-slate-500">
+              <div className="p-3.5 rounded-xl bg-[#161d2d] border border-slate-800 space-y-1 text-xs text-slate-300">
+                <div className="flex items-center justify-between text-slate-400">
                   <span>Current Robinhood Price:</span>
-                  <span className="font-mono font-bold text-slate-800">
+                  <span className="font-mono font-bold text-slate-200">
                     ${selectedStockForOrder.price.toFixed(2)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-slate-500">
+                <div className="flex items-center justify-between text-slate-400">
                   <span>Execution Pipeline:</span>
-                  <span className="font-mono font-bold text-emerald-700">
+                  <span className="font-mono font-bold text-emerald-400">
                     {executionMode === 'ACTUAL' ? 'Robinhood Live API' : 'Paperless Sandbox'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-slate-900 font-bold pt-1 border-t border-slate-200">
+                <div className="flex items-center justify-between text-slate-200 font-bold pt-1 border-t border-slate-700">
                   <span>Estimated Total:</span>
-                  <span className="font-mono text-sm font-black text-slate-900">
+                  <span className="font-mono text-sm font-black text-slate-100">
                     ${(orderQuantity * (orderType === 'LIMIT' ? limitPrice : selectedStockForOrder.price)).toFixed(2)}
                   </span>
                 </div>
@@ -1094,7 +1171,7 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                 <button
                   type="button"
                   onClick={() => setSelectedStockForOrder(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs"
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1104,8 +1181,8 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                   disabled={isSubmittingOrder}
                   className={`px-5 py-2 rounded-xl font-bold text-xs text-white shadow-md transition-all ${
                     selectedStockForOrder.side === 'BUY'
-                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
-                      : 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20'
+                      : 'bg-rose-600 hover:bg-rose-500 shadow-rose-500/20'
                   }`}
                 >
                   {isSubmittingOrder ? (
@@ -1142,6 +1219,17 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
         target={selectedStockForLoopConfig}
         onClose={() => setSelectedStockForLoopConfig(null)}
         onSaved={handleLoopConfigSaved}
+      />
+
+      {/* VOLUME & FLOW STRATEGY MULTI-PERIOD MODAL */}
+      <VolumeStrategyModal
+        isOpen={Boolean(selectedStockForVolume)}
+        target={selectedStockForVolume}
+        onClose={() => setSelectedStockForVolume(null)}
+        onOpenTradeModal={(stock) => {
+          setSelectedStockForVolume(null);
+          openOrderModal(stock.symbol, stock.companyName, stock.currentPrice, stock.defaultSide);
+        }}
       />
     </div>
   );

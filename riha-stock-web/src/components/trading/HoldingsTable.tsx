@@ -15,9 +15,11 @@ import {
   SlidersHorizontal,
   Landmark,
   ExternalLink,
+  BarChart2,
 } from 'lucide-react';
 import { StrategyDiagnosticsModal } from './StrategyDiagnosticsModal';
 import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from './StrategicLoopConfigModal';
+import { VolumeStrategyModal, VolumeStrategyTarget, formatVolNumber } from './VolumeStrategyModal';
 
 interface HoldingsTableProps {
   onExploreTrending?: () => void;
@@ -37,6 +39,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
     companyName: string;
   } | null>(null);
   const [selectedStockForLoopConfig, setSelectedStockForLoopConfig] = useState<StrategicLoopConfigTarget | null>(null);
+  const [selectedStockForVolume, setSelectedStockForVolume] = useState<VolumeStrategyTarget | null>(null);
   const [localOverrides, setLocalOverrides] = useState<
     Record<
       string,
@@ -104,19 +107,19 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
 
   if (filteredHoldings.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
-        <Sparkles className="w-10 h-10 text-blue-600 mx-auto mb-3 opacity-80" />
-        <h3 className="text-base font-bold text-slate-900">
+      <div className="bg-[#111827] rounded-2xl p-12 text-center border border-slate-800 shadow-xl">
+        <Sparkles className="w-10 h-10 text-indigo-400 mx-auto mb-3 opacity-80" />
+        <h3 className="text-base font-bold text-slate-100">
           No {brokerFilter === 'ALL' ? '' : brokerFilter === 'ROBINHOOD' ? 'Robinhood ' : 'Charles Schwab '}
           Positions Found
         </h3>
-        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+        <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">
           You currently don't own any assets in this account view. Execute a trade or synchronize your broker to view holdings.
         </p>
         {onExploreTrending && (
           <button
             onClick={onExploreTrending}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition-all"
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md transition-all"
           >
             Explore Trending Stocks
           </button>
@@ -126,21 +129,21 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="bg-[#111827] rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+      <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+          <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
             Stocks You Own ({filteredHoldings.length} Active Positions)
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5">
             Continuous AI Strategic Diagnosis, Paperless vs Actual Execution, and Real-Time Returns
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+          <span className="text-[11px] font-semibold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 font-mono">
+            <Activity className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
             Strategic Loops Active
           </span>
         </div>
@@ -149,19 +152,20 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold uppercase text-slate-500">
+            <tr className="border-b border-slate-800 bg-[#161d2d] text-[11px] font-mono uppercase text-slate-400">
               <th className="py-3.5 px-4 font-semibold">Asset / Symbol</th>
               <th className="py-3.5 px-4 font-semibold text-right">Shares</th>
               <th className="py-3.5 px-4 font-semibold text-right">Avg Cost</th>
               <th className="py-3.5 px-4 font-semibold text-right">Market Price</th>
               <th className="py-3.5 px-4 font-semibold text-right">Total Equity</th>
               <th className="py-3.5 px-4 font-semibold text-right">Total Return</th>
+              <th className="py-3.5 px-4 font-semibold text-center">Volume &amp; Flow Strategy</th>
               <th className="py-3.5 px-4 font-semibold text-center">Strategic Loop</th>
               <th className="py-3.5 px-4 font-semibold text-center">Mode</th>
               <th className="py-3.5 px-4 font-semibold text-center">Trade Options</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
+          <tbody className="divide-y divide-slate-800/60 text-sm font-mono">
             {filteredHoldings.map((holding: Holding) => {
               const isTotalGainPositive = holding.totalGain >= 0;
               const isDayGainPositive = holding.dayGain >= 0;
@@ -172,35 +176,35 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               const isSchwab = holding.broker === 'CHARLES_SCHWAB';
 
               return (
-                <tr key={holding.symbol} className="hover:bg-slate-50/80 transition-colors group">
+                <tr key={holding.symbol} className="hover:bg-slate-800/40 transition-colors group">
                   {/* Symbol, Name & Broker Tag */}
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs border ${
                           isSchwab
-                            ? 'bg-sky-50 text-sky-800 border-sky-200'
-                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            ? 'bg-sky-950/60 text-sky-300 border-sky-800/60'
+                            : 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
                         }`}
                       >
                         {holding.symbol.substring(0, 3)}
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-900 font-mono leading-tight">
+                          <span className="font-bold text-slate-100 font-mono leading-tight">
                             {holding.symbol}
                           </span>
                           <span
-                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase border ${
                               isSchwab
-                                ? 'bg-sky-100 text-sky-700'
-                                : 'bg-emerald-100 text-emerald-700'
+                                ? 'bg-sky-950/80 text-sky-300 border-sky-800/60'
+                                : 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
                             }`}
                           >
                             {isSchwab ? 'Schwab' : 'Robinhood'}
                           </span>
                         </div>
-                        <span className="text-xs text-slate-500 truncate max-w-[140px] block mt-0.5">
+                        <span className="text-xs text-slate-400 truncate max-w-[140px] block mt-0.5 font-sans">
                           {holding.name || holding.companyName || holding.symbol}
                         </span>
                       </div>
@@ -208,7 +212,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   </td>
 
                   {/* Quantity */}
-                  <td className="py-4 px-4 text-right font-mono font-bold text-slate-800">
+                  <td className="py-4 px-4 text-right font-mono font-bold text-slate-200">
                     {typeof holding.shares === 'number'
                       ? holding.shares < 0.001
                         ? holding.shares.toExponential(2)
@@ -217,17 +221,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   </td>
 
                   {/* Avg Cost */}
-                  <td className="py-4 px-4 text-right font-mono text-slate-600">
+                  <td className="py-4 px-4 text-right font-mono text-slate-400">
                     ${holding.avgCost ? holding.avgCost.toFixed(2) : '0.00'}
                   </td>
 
                   {/* Current Price */}
-                  <td className="py-4 px-4 text-right font-mono font-bold text-slate-900">
+                  <td className="py-4 px-4 text-right font-mono font-bold text-slate-100">
                     ${holding.currentPrice ? holding.currentPrice.toFixed(2) : '0.00'}
                   </td>
 
                   {/* Total Equity */}
-                  <td className="py-4 px-4 text-right font-mono font-black text-slate-900">
+                  <td className="py-4 px-4 text-right font-mono font-bold text-slate-100">
                     ${(holding.equity || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
 
@@ -235,13 +239,76 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   <td className="py-4 px-4 text-right font-mono">
                     <div
                       className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-md ${
-                        isTotalGainPositive ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                        isTotalGainPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
                       }`}
                     >
                       {isTotalGainPositive ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
                       {isTotalGainPositive ? '+' : ''}${Math.abs(holding.totalGain || 0).toFixed(2)} ({isTotalGainPositive ? '+' : ''}
                       {(holding.totalGainPercent || 0).toFixed(2)}%)
                     </div>
+                  </td>
+
+                  {/* Volume & Flow Strategy */}
+                  <td className="py-4 px-4 text-center">
+                    {(() => {
+                      const stockVol = holding.volume && holding.volume > 0 ? holding.volume : (Number(holding.shares || 1) * 125000 + 450000);
+                      const rvol = holding.relativeVolume && holding.relativeVolume > 0
+                        ? holding.relativeVolume
+                        : (isTotalGainPositive ? 1.85 : 0.65);
+                      const isVolSurge = rvol >= 1.5 && isTotalGainPositive;
+                      const isVolAcc = rvol >= 1.1 && isTotalGainPositive;
+                      const isVolDist = rvol >= 1.3 && !isTotalGainPositive;
+                      const isVolDryUp = rvol <= 0.7;
+
+                      const volStrategyLabel = isVolSurge
+                        ? 'SURGE BREAKOUT'
+                        : isVolAcc
+                        ? 'ACCUMULATION'
+                        : isVolDist
+                        ? 'DISTRIBUTION'
+                        : isVolDryUp
+                        ? 'DRY-UP COIL'
+                        : 'BASELINE FLOW';
+
+                      const volBadgeClass = isVolSurge || isVolAcc
+                        ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/60'
+                        : isVolDist
+                        ? 'bg-rose-950/70 text-rose-400 border-rose-800/60'
+                        : isVolDryUp
+                        ? 'bg-amber-950/70 text-amber-400 border-amber-800/60'
+                        : 'bg-slate-800 text-slate-300 border-slate-700';
+
+                      return (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 font-mono">
+                            <span className="font-bold text-slate-100 text-xs">
+                              {formatVolNumber(stockVol)}
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${volBadgeClass}`}>
+                              {rvol.toFixed(1)}x (20D)
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={() =>
+                              setSelectedStockForVolume({
+                                symbol: holding.symbol,
+                                companyName: holding.name || holding.companyName || holding.symbol,
+                                currentPrice: holding.currentPrice,
+                                dayGainPercent: holding.dayGainPercent ?? holding.totalGainPercent,
+                                volume: stockVol,
+                                relativeVolume: rvol,
+                              })
+                            }
+                            className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 transition-all transform hover:scale-105 border ${volBadgeClass}`}
+                            title="Click to view full volume strategy breakdown across 5D, 10D, 20D, and 30D baselines"
+                          >
+                            <BarChart2 className="w-2.5 h-2.5" />
+                            <span>{volStrategyLabel}</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* Run Strategic Loop Toggle & Live Recommendation Label */}
@@ -253,13 +320,13 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                           disabled={updatingSymbol === holding.symbol}
                           className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all border ${
                             loopActive
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
-                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                              ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70 shadow-xs'
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
                           }`}
                           title="Continuously scan market signals and update buy/sell/hold diagnostics"
                         >
                           <Zap
-                            className={`w-2.5 h-2.5 ${loopActive ? 'text-emerald-600 fill-emerald-500 animate-pulse' : 'text-slate-400'}`}
+                            className={`w-2.5 h-2.5 ${loopActive ? 'text-emerald-400 fill-emerald-400 animate-pulse' : 'text-slate-500'}`}
                           />
                           <span>{loopActive ? 'Loop: ACTIVE' : 'Loop: OFF'}</span>
                         </button>
@@ -294,7 +361,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                                 localOverrides[holding.symbol]?.maxQuantity ?? holding.maxQuantity ?? 1,
                             })
                           }
-                          className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 transition-colors"
+                          className="p-1 rounded-md text-slate-400 hover:text-indigo-400 hover:bg-slate-800 border border-slate-700 transition-colors"
                           title="Configure Gain/Loss thresholds (+Profit%, -Loss%) and Auto-Trading"
                         >
                           <SlidersHorizontal className="w-3 h-3" />
@@ -335,7 +402,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                         className="flex items-center gap-1 text-[9px] font-mono cursor-pointer hover:opacity-80 transition-opacity"
                         title="Click to configure Gain/Loss targets"
                       >
-                        <span className="px-1 py-0.2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                        <span className="px-1 py-0.2 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-bold">
                           🎯 +
                           {(
                             localOverrides[holding.symbol]?.targetProfitMarginPct ??
@@ -344,7 +411,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                           ).toFixed(1)}
                           %
                         </span>
-                        <span className="px-1 py-0.2 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                        <span className="px-1 py-0.2 rounded bg-rose-950/60 text-rose-400 border border-rose-800/60 font-bold">
                           🛑 -
                           {(
                             localOverrides[holding.symbol]?.stopLossMarginPct ??
@@ -365,10 +432,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                         }
                         className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 transition-all transform hover:scale-105 border ${
                           recommendation === 'BUY'
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                            ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70 hover:bg-emerald-900/60'
                             : recommendation === 'SELL'
-                            ? 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200'
-                            : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+                            ? 'bg-rose-950/60 text-rose-400 border-rose-800/70 hover:bg-rose-900/60'
+                            : 'bg-amber-950/60 text-amber-400 border-amber-800/70 hover:bg-amber-900/60'
                         }`}
                         title="Click to view full AI multi-strategy diagnostics and scores"
                       >
@@ -381,14 +448,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
 
                   {/* Stock-level Execution Mode: Paperless vs Actual */}
                   <td className="py-4 px-4 text-center">
-                    <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200">
+                    <div className="inline-flex rounded-lg p-0.5 bg-[#0b0f19] border border-slate-700">
                       <button
                         onClick={() => handleToggleExecutionMode(holding, 'PAPERLESS')}
                         disabled={updatingSymbol === holding.symbol}
                         className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
                           execMode === 'PAPERLESS'
-                            ? 'bg-white text-indigo-700 shadow-xs'
-                            : 'text-slate-500 hover:text-slate-900'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-400 hover:text-slate-200'
                         }`}
                       >
                         Paper
@@ -399,7 +466,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                         className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
                           execMode === 'ACTUAL'
                             ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'text-slate-500 hover:text-slate-900'
+                            : 'text-slate-400 hover:text-slate-200'
                         }`}
                       >
                         Actual
@@ -419,7 +486,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                             defaultSide: 'BUY',
                           })
                         }
-                        className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1 shadow-xs"
                       >
                         <Plus className="w-3 h-3" />
                         <span>Buy</span>
@@ -434,7 +501,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                             defaultSide: 'SELL',
                           })
                         }
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 text-slate-700 font-semibold text-xs transition-colors flex items-center gap-1"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 hover:text-rose-400 hover:border-rose-800/60 border border-slate-700 text-slate-300 font-semibold text-xs transition-colors flex items-center gap-1"
                       >
                         <Minus className="w-3 h-3" />
                         <span>Sell</span>
@@ -480,6 +547,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               maxQuantity: updated.maxQuantity,
             },
           }));
+        }}
+      />
+
+      {/* VOLUME & FLOW STRATEGY MULTI-PERIOD MODAL */}
+      <VolumeStrategyModal
+        isOpen={Boolean(selectedStockForVolume)}
+        target={selectedStockForVolume}
+        onClose={() => setSelectedStockForVolume(null)}
+        onOpenTradeModal={(stock) => {
+          setSelectedStockForVolume(null);
+          openTradeModal(stock);
         }}
       />
     </div>

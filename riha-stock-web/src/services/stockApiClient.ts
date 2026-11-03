@@ -549,8 +549,10 @@ export class StockApiClient {
   public static async getTrendingStocks(filters: TrendingFilters): Promise<TrendingStock[]> {
     const limit = filters.limit > 0 ? filters.limit : 25;
     const algo = filters.algorithm || 'TOP_GAINERS_DAY';
+    // Use ALL filter on strategy-service to query the complete database of live monitored candidates
+    const effectiveFilter = algo === 'TOP_GAINERS_DAY' ? 'ALL' : algo;
     const params = new URLSearchParams({
-      filter: algo,
+      filter: effectiveFilter,
       limit: String(limit),
       minPrice: String(filters.minPrice ?? 0.0),
       maxPrice: String(filters.maxPrice ?? 1500.0),
@@ -566,7 +568,10 @@ export class StockApiClient {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          return data.map((item: any) => this.mapToTrendingStock(item));
+          const stocks = data.map((item: any) => this.mapToTrendingStock(item));
+          if (stocks.length >= 5 || algo !== 'TOP_GAINERS_DAY') {
+            return stocks;
+          }
         }
       }
     } catch (e) {
@@ -579,7 +584,7 @@ export class StockApiClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: new Date().toISOString().substring(0, 10),
-          algorithm: algo === 'ALL' ? 'HIGH_CONVICTION_MULTI_FACTOR' : algo,
+          algorithm: 'HIGH_CONVICTION_MULTI_FACTOR',
           limit,
         }),
       });
@@ -596,6 +601,15 @@ export class StockApiClient {
       }
     } catch (e) {
       console.warn('Market ingestor MCP failed:', e);
+    }
+
+    try {
+      const rhStocks = await this.getRobinhoodTrendingStocks();
+      if (Array.isArray(rhStocks) && rhStocks.length > 0) {
+        return rhStocks.map((item: any) => this.mapToTrendingStock(item));
+      }
+    } catch (e) {
+      console.warn('Failed to load Robinhood trending fallback:', e);
     }
 
     return [];

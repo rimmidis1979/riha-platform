@@ -57,26 +57,26 @@ export const TrendingStocksPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-blue-100 text-blue-600">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <Flame className="w-5 h-5" />
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-2xl font-black text-slate-100 tracking-tight">
               Market Movers &amp; Trending Stocks
             </h1>
           </div>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-slate-400 mt-1">
             Real-time scanner evaluated through the 5-node agentic momentum trading prompt and SEC 30-min filing catalysts.
           </p>
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="flex items-center p-1 bg-white border border-slate-200 rounded-xl shadow-sm self-start sm:self-auto">
+        <div className="flex items-center p-1 bg-[#111827] border border-slate-800 rounded-xl shadow-lg self-start sm:self-auto">
           <button
             onClick={() => setActiveView('all')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeView === 'all'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -87,8 +87,8 @@ export const TrendingStocksPage: React.FC = () => {
             onClick={() => setActiveView('personalized')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeView === 'personalized'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
             }`}
           >
             <Star className={`w-3.5 h-3.5 ${personalizedWatchlist.length > 0 ? 'fill-current' : ''}`} />
@@ -112,10 +112,10 @@ export const TrendingStocksPage: React.FC = () => {
       ) : (
         <div>
           {isScanning ? (
-            <div className="py-20 text-center bg-white rounded-2xl border border-slate-200">
-              <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
-              <h3 className="text-base font-bold text-slate-900">Scanning Live Feeds &amp; RAG Playbooks</h3>
-              <p className="text-xs text-slate-500 mt-1">
+            <div className="py-20 text-center bg-[#111827] rounded-2xl border border-slate-800 shadow-xl">
+              <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-100">Scanning Live Feeds &amp; RAG Playbooks</h3>
+              <p className="text-xs text-slate-400 mt-1">
                 Evaluating candidate stocks against the Momentum Trading Analyst prompt...
               </p>
             </div>
@@ -126,10 +126,10 @@ export const TrendingStocksPage: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300">
-              <Sparkles className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <h3 className="text-sm font-semibold text-slate-800">No stocks match current filter criteria</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            <div className="py-16 text-center bg-[#111827] rounded-2xl border border-dashed border-slate-700">
+              <Sparkles className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+              <h3 className="text-sm font-semibold text-slate-200">No stocks match current filter criteria</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
                 Try widening your price range ($0 - $1500) or reset filters to display all live movers.
               </p>
               <button
@@ -147,7 +147,7 @@ export const TrendingStocksPage: React.FC = () => {
                     algorithm: 'TOP_GAINERS_DAY',
                   })
                 }
-                className="mt-4 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 transition-colors shadow-md"
               >
                 Reset to Default (25 Stocks)
               </button>

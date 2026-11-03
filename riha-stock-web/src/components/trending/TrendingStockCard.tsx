@@ -23,22 +23,22 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
   const decision = stock.promptDecision;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md hover:border-blue-300 transition-all group">
+    <div className="bg-[#111827] rounded-2xl border border-slate-800 p-5 flex flex-col justify-between shadow-xl hover:shadow-2xl hover:border-indigo-500/50 transition-all group">
       <div>
         {/* Top Header: Ticker, Name, Sector, and Star Toggle */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center font-mono font-bold text-slate-800 text-sm border border-slate-200 group-hover:border-blue-400 group-hover:bg-blue-50 transition-colors">
+            <div className="w-11 h-11 rounded-xl bg-[#161d2d] flex items-center justify-center font-mono font-bold text-slate-200 text-sm border border-slate-700 group-hover:border-indigo-500 group-hover:bg-indigo-950/30 transition-colors">
               {stock.symbol}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-slate-900 text-base font-mono">{stock.symbol}</h4>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium border border-slate-200/60">
+                <h4 className="font-bold text-slate-100 text-base font-mono">{stock.symbol}</h4>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono border border-slate-700">
                   {stock.sector}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 truncate max-w-[200px] mt-0.5">{stock.companyName}</p>
+              <p className="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">{stock.companyName}</p>
             </div>
           </div>
 
@@ -48,24 +48,24 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
             title={stock.isPersonalized ? 'Remove from Personalized Selection' : 'Add to Personalized Selection'}
             className={`p-2 rounded-xl transition-all ${
               stock.isPersonalized
-                ? 'bg-amber-50 text-amber-500 border border-amber-200 shadow-sm'
-                : 'bg-slate-50 text-slate-400 border border-slate-200 hover:text-amber-500 hover:bg-amber-50/50'
+                ? 'bg-amber-950/60 text-amber-400 border border-amber-800/70 shadow-sm'
+                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-amber-400 hover:bg-slate-700'
             }`}
           >
-            <Star className={`w-5 h-5 ${stock.isPersonalized ? 'fill-amber-500 text-amber-500' : ''}`} />
+            <Star className={`w-5 h-5 ${stock.isPersonalized ? 'fill-amber-400 text-amber-400' : ''}`} />
           </button>
         </div>
 
         {/* Price & Day Change */}
-        <div className="flex items-baseline justify-between mt-4 pb-3 border-b border-slate-100">
+        <div className="flex items-baseline justify-between mt-4 pb-3 border-b border-slate-800">
           <div>
-            <div className="text-2xl font-black font-mono text-slate-900">
+            <div className="text-2xl font-black font-mono text-slate-100">
               ${stock.price.toFixed(2)}
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 text-xs font-mono">
               <span
                 className={`flex items-center font-bold px-1.5 py-0.5 rounded-md ${
-                  isPositive ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                  isPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
                 }`}
               >
                 {isPositive ? <TrendingUp className="w-3.5 h-3.5 mr-1" /> : <TrendingDown className="w-3.5 h-3.5 mr-1" />}
@@ -78,13 +78,13 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
 
           <div className="text-right">
             <div className="text-[10px] uppercase font-mono text-slate-400">Momentum</div>
-            <div className="text-sm font-bold font-mono text-blue-600 flex items-center justify-end gap-1">
-              <Zap className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
+            <div className="text-sm font-bold font-mono text-indigo-400 flex items-center justify-end gap-1">
+              <Zap className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400" />
               <span>{stock.momentumScore}/100</span>
             </div>
             {stock.relativeVolume && (
-              <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                RVOL: <strong className="text-slate-800">{stock.relativeVolume.toFixed(1)}x</strong>
+              <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                RVOL: <strong className="text-slate-200">{stock.relativeVolume.toFixed(1)}x</strong>
               </div>
             )}
           </div>
@@ -92,36 +92,36 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
 
         {/* Momentum Trading Analyst Prompt Decision Block (If Evaluated) */}
         {decision && (
-          <div className="mt-3 p-3 rounded-xl bg-blue-50/70 border border-blue-100 space-y-2 text-xs">
+          <div className="mt-3 p-3 rounded-xl bg-[#161d2d] border border-slate-700/80 space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-blue-800">
-                <BrainCircuit className="w-3.5 h-3.5 text-blue-600" />
+              <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-indigo-300 font-mono">
+                <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
                 Prompt Decision:
               </span>
               <span
                 className={`px-2 py-0.5 rounded-md font-mono font-bold text-[11px] ${
                   decision.action === 'BUY'
-                    ? 'bg-emerald-600 text-white'
+                    ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-800/60'
                     : decision.action === 'HOLD'
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-slate-600 text-white'
+                    ? 'bg-amber-950/70 text-amber-400 border border-amber-800/60'
+                    : 'bg-rose-950/70 text-rose-400 border border-rose-800/60'
                 }`}
               >
                 {decision.action} ({Math.round(decision.confidence * 100)}%)
               </span>
             </div>
 
-            <p className="text-[11px] text-slate-700 leading-snug">
+            <p className="text-[11px] text-slate-300 leading-snug">
               {decision.reasoning}
             </p>
 
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-blue-200/60 font-mono text-[11px]">
-              <div className="flex items-center gap-1 text-emerald-800 font-semibold">
-                <Target className="w-3 h-3 text-emerald-600" />
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-700 font-mono text-[11px]">
+              <div className="flex items-center gap-1 text-emerald-400 font-semibold">
+                <Target className="w-3 h-3 text-emerald-400" />
                 <span>Target: ${decision.target_price.toFixed(2)} (+5%)</span>
               </div>
-              <div className="flex items-center gap-1 text-rose-800 font-semibold justify-end">
-                <ShieldAlert className="w-3 h-3 text-rose-600" />
+              <div className="flex items-center gap-1 text-rose-400 font-semibold justify-end">
+                <ShieldAlert className="w-3 h-3 text-rose-400" />
                 <span>Stop: ${decision.stop_loss.toFixed(2)} (-2%)</span>
               </div>
             </div>
@@ -130,20 +130,20 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
 
         {/* SEC Filing / Catalyst Tag */}
         {stock.recentFiling && (
-          <div className="mt-3 flex items-start gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
-            <FileText className="w-3.5 h-3.5 text-amber-700 flex-shrink-0 mt-0.5" />
+          <div className="mt-3 flex items-start gap-2 p-2 rounded-lg bg-amber-950/40 border border-amber-800/50 text-xs text-amber-300">
+            <FileText className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
             <div className="leading-tight">
-              <span className="font-bold text-amber-800">SEC {stock.recentFiling.formType}: </span>
-              <span className="text-[11px] text-amber-900">{stock.recentFiling.title}</span>
+              <span className="font-bold text-amber-200">SEC {stock.recentFiling.formType}: </span>
+              <span className="text-[11px] text-amber-300/90">{stock.recentFiling.title}</span>
             </div>
           </div>
         )}
       </div>
 
       {/* Action Footer: Quick Buy */}
-      <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-        <span className="text-xs text-slate-500 font-mono">
-          Vol: <strong className="text-slate-800">{stock.volume}</strong>
+      <div className="mt-5 pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+        <span className="text-xs text-slate-400 font-mono">
+          Vol: <strong className="text-slate-200">{stock.volume}</strong>
         </span>
 
         <button
@@ -155,7 +155,7 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
               defaultSide: 'BUY',
             })
           }
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm hover:shadow transition-all"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md transition-all"
         >
           <PlusCircle className="w-4 h-4" />
           <span>Quick Buy</span>

@@ -32,10 +32,18 @@ interface AccountPageProps {
 
 export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onNavigateToStrategies }) => {
   const { user, updateCashBalance } = useAuth();
-  const { holdings, setHoldings, openTradeModal, trendingStocks } = useTrading();
+  const {
+    holdings,
+    setHoldings,
+    openTradeModal,
+    trendingStocks,
+    selectedProvider,
+    setSelectedProvider,
+  } = useTrading();
 
-  // Top Broker Tab State: CONSOLIDATED vs ROBINHOOD_STOCKS vs ROBINHOOD_CRYPTO vs CHARLES_SCHWAB
-  const [selectedBrokerTab, setSelectedBrokerTab] = useState<'CONSOLIDATED' | 'ROBINHOOD_STOCKS' | 'ROBINHOOD_CRYPTO' | 'CHARLES_SCHWAB'>('CONSOLIDATED');
+  // Top Broker Provider is driven by global context dropdown
+  const selectedBrokerTab = selectedProvider;
+  const setSelectedBrokerTab = setSelectedProvider;
   const [activeSubTab, setActiveSubTab] = useState<'holdings' | 'history'>('holdings');
 
   // Broker Telemetry State
@@ -98,20 +106,20 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
           }
         }
 
-        // 2. Process Charles Schwab holdings
+        // 2. Process Schwab holdings
         if (consolidated.charlesSchwab?.positions && Array.isArray(consolidated.charlesSchwab.positions)) {
-          for (const sp of consolidated.charlesSchwab.positions) {
-            const sym = sp.symbol || 'UNKNOWN';
-            const qty = Number(sp.quantity || 0);
-            const avgCost = Number(sp.averageCost || sp.currentPrice || 0);
-            const curPrice = Number(sp.currentPrice || avgCost || 0);
-            const eq = Number(sp.marketValue || qty * curPrice || 0);
-            const unPnl = Number(sp.unrealizedPnl || 0);
-            const unPnlPct = Number(sp.unrealizedPnlPct || 0);
+          for (const p of consolidated.charlesSchwab.positions) {
+            const sym = p.symbol || 'UNKNOWN';
+            const qty = Number(p.quantity || 0);
+            const avgCost = Number(p.averageCost || p.currentPrice || 0);
+            const curPrice = Number(p.currentPrice || avgCost || 0);
+            const eq = Number(p.marketValue || qty * curPrice || 0);
+            const unPnl = Number(p.unrealizedPnl || 0);
+            const unPnlPct = Number(p.unrealizedPnlPct || 0);
 
             mergedHoldings.push({
               symbol: sym,
-              name: sp.companyName || `${sym} (Charles Schwab)`,
+              name: `${sym} (Charles Schwab)`,
               shares: qty,
               avgCost,
               currentPrice: curPrice,
@@ -133,81 +141,62 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
           setHoldings(mergedHoldings);
         }
 
-        if (typeof consolidated.totalCashBalance === 'number' && user?.cashBalance !== undefined) {
-          updateCashBalance(consolidated.totalCashBalance - user.cashBalance);
+        // Update local cash balance in AuthContext
+        const totalLiveCash = Number(consolidated.totalSettledCash || 0);
+        if (totalLiveCash > 0) {
+          updateCashBalance(totalLiveCash);
         }
       }
     } catch (e) {
-      console.warn('Could not sync consolidated broker telemetry:', e);
+      console.error('Failed to sync all broker portfolios:', e);
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Compute stats dynamically per tab
-  const totalCombinedEquity = holdings.reduce((sum, h) => sum + (h.equity || 0), 0);
-  const rbEquity = holdings.filter((h) => !h.broker || h.broker === 'ROBINHOOD').reduce((sum, h) => sum + (h.equity || 0), 0);
-  const schwabEquity = holdings.filter((h) => h.broker === 'CHARLES_SCHWAB').reduce((sum, h) => sum + (h.equity || 0), 0);
+  // Extract financial KPIs
+  const rbEquity = Number(robinhoodData?.totalEquity || 0);
+  const rbCash = Number(robinhoodData?.cashBalance || robinhoodData?.settledCash || 0);
+  const rbBuyingPower = Number(robinhoodData?.buyingPower || 0);
 
-  const rbCash = Number(robinhoodData?.cashBalance ?? user?.cashBalance ?? 5.50);
-  const schwabCash = Number(schwabData?.cashBalance ?? 0);
+  const schwabEquity = Number(schwabData?.liquidationValue || schwabData?.totalEquity || 0);
+  const schwabCash = Number(schwabData?.cashBalance || schwabData?.settledCash || 0);
+  const schwabBuyingPower = Number(schwabData?.buyingPower || 0);
+
+  const totalCombinedEquity = rbEquity + schwabEquity;
   const totalCash = rbCash + schwabCash;
-
-  const rbBuyingPower = Number(robinhoodData?.buyingPower ?? rbCash);
-  const schwabBuyingPower = Number(schwabData?.buyingPower ?? schwabCash);
   const totalBuyingPower = rbBuyingPower + schwabBuyingPower;
 
   return (
     <div className="space-y-6">
-      {/* Account Hero Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
+      {/* Top Header Card */}
+      <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-              Multi-Broker Trading Terminal
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-              Dual-Broker Architecture
-            </span>
-
-            {/* Robinhood status badge */}
-            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Robinhood MCP Linked
-            </span>
-
-            {/* Schwab status badge */}
-            <span
-              className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1 ${
-                schwabData?.connected
-                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                  : 'bg-amber-50 text-amber-700 border border-amber-200'
-              }`}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  schwabData?.connected ? 'bg-sky-500 animate-pulse' : 'bg-amber-400'
-                }`}
-              />
-              {schwabData?.connected ? 'Charles Schwab Linked' : 'Schwab OAuth Ready'}
-            </span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+              <Briefcase className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                <span>Multi-Broker Executive Ledger</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-md font-mono font-bold bg-indigo-950/80 text-indigo-400 border border-indigo-800/80">
+                  Dual Pipeline
+                </span>
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                Robinhood Crypto &amp; Equities • Charles Schwab Trader API • Real-Time Strategic Loop Engine
+              </p>
+            </div>
           </div>
-
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-1">
-            {user?.name || 'Trader'}'s Brokerage Accounts
-          </h1>
-          <p className="text-xs text-slate-500 font-mono mt-0.5">
-            Robinhood Crypto &amp; Equities • Charles Schwab Trader API • Real-Time Strategic Loop Engine
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <button
             onClick={syncAllBrokers}
             disabled={isSyncing}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition-all"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-400' : ''}`} />
             <span>{isSyncing ? 'Syncing...' : 'Sync Brokers'}</span>
           </button>
 
@@ -225,7 +214,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
                 onExploreTrending();
               }
             }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md shadow-blue-500/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>New Trade Order</span>
@@ -234,63 +223,63 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
       </div>
 
       {/* Primary Broker Navigation Tabs */}
-      <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
+      <div className="bg-[#0c1220] p-1.5 rounded-2xl flex flex-wrap items-center gap-1 border border-slate-800">
         <button
           onClick={() => setSelectedBrokerTab('CONSOLIDATED')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
+          className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
             selectedBrokerTab === 'CONSOLIDATED'
-              ? 'bg-white text-blue-600 shadow-sm border border-slate-200'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-[#1e293b] text-white shadow-sm border border-slate-700'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
           }`}
         >
-          <Layers className="w-4 h-4" />
+          <Layers className="w-4 h-4 text-indigo-400" />
           <span>Consolidated Portfolio</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
             {holdings.length} Assets
           </span>
         </button>
 
         <button
           onClick={() => setSelectedBrokerTab('ROBINHOOD_STOCKS')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
+          className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
             selectedBrokerTab === 'ROBINHOOD_STOCKS'
-              ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-emerald-950/70 text-emerald-300 shadow-sm border border-emerald-800/80'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
           }`}
         >
-          <TrendingUp className="w-4 h-4 text-emerald-600" />
+          <TrendingUp className="w-4 h-4 text-emerald-400" />
           <span>Robinhood Stocks</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-mono">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono">
             Equities &amp; Trade
           </span>
         </button>
 
         <button
           onClick={() => setSelectedBrokerTab('ROBINHOOD_CRYPTO')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
+          className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
             selectedBrokerTab === 'ROBINHOOD_CRYPTO'
-              ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-emerald-950/70 text-emerald-300 shadow-sm border border-emerald-800/80'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
           }`}
         >
-          <Zap className="w-4 h-4 text-emerald-600 fill-emerald-500" />
+          <Zap className="w-4 h-4 text-emerald-400 fill-emerald-500" />
           <span>Robinhood Crypto (MCP)</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-mono">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono">
             ${(rbEquity + rbCash).toFixed(2)}
           </span>
         </button>
 
         <button
           onClick={() => setSelectedBrokerTab('CHARLES_SCHWAB')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
+          className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
             selectedBrokerTab === 'CHARLES_SCHWAB'
-              ? 'bg-white text-sky-700 shadow-sm border border-sky-200'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-sky-950/70 text-sky-300 shadow-sm border border-sky-800/80'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
           }`}
         >
-          <Landmark className="w-4 h-4 text-sky-600" />
+          <Landmark className="w-4 h-4 text-sky-400" />
           <span>Charles Schwab</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 font-mono">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800 font-mono">
             ${(schwabEquity + schwabCash).toFixed(2)}
           </span>
         </button>
@@ -301,62 +290,62 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
         <div className="space-y-6">
           {/* 4 Consolidated Summary Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Consolidated Portfolio</span>
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                <div className="p-2 rounded-xl bg-indigo-950/60 text-indigo-400 border border-indigo-800/60">
                   <DollarSign className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-slate-900">
+              <div className="text-2xl font-black font-mono text-white">
                 ${(totalCombinedEquity + totalCash).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">
+              <div className="text-xs text-slate-400 font-mono mt-1">
                 Robinhood + Schwab Total Asset Value
               </div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Combined Available Cash</span>
-                <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+                <div className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700">
                   <Wallet className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-slate-900">
+              <div className="text-2xl font-black font-mono text-white">
                 ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">
+              <div className="text-xs text-slate-400 font-mono mt-1">
                 RH: ${rbCash.toFixed(2)} • Schwab: ${schwabCash.toFixed(2)}
               </div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Total Buying Power</span>
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                <div className="p-2 rounded-xl bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
                   <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-emerald-600">
+              <div className="text-2xl font-black font-mono text-emerald-400">
                 ${totalBuyingPower.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">
+              <div className="text-xs text-slate-400 font-mono mt-1">
                 Available for Multi-Broker Auto-Trading
               </div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Active Broker Feeds</span>
-                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                <div className="p-2 rounded-xl bg-indigo-950/60 text-indigo-400 border border-indigo-800/60">
                   <Layers className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-slate-900">
+              <div className="text-2xl font-black font-mono text-white">
                 2 Connected
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">
+              <div className="text-xs text-slate-400 font-mono mt-1">
                 Robinhood Live + Schwab OAuth
               </div>
             </div>
@@ -382,57 +371,57 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
 
           {/* 4 Robinhood Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Robinhood Total Value</span>
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                <div className="p-2 rounded-xl bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
                   <DollarSign className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-slate-900">
+              <div className="text-2xl font-black font-mono text-white">
                 ${(rbEquity + rbCash).toFixed(2)}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">Live Robinhood MCP Telemetry</div>
+              <div className="text-xs text-slate-400 font-mono mt-1">Live Robinhood MCP Telemetry</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Settled Cash</span>
-                <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+                <div className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700">
                   <Wallet className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-slate-900">
+              <div className="text-2xl font-black font-mono text-white">
                 ${rbCash.toFixed(2)}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">T+0 Settled Balance</div>
+              <div className="text-xs text-slate-400 font-mono mt-1">T+0 Settled Balance</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Crypto Buying Power</span>
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                  <Zap className="w-4 h-4 text-emerald-600" />
+                <div className="p-2 rounded-xl bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
+                  <Zap className="w-4 h-4 text-emerald-400" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-emerald-700">
+              <div className="text-2xl font-black font-mono text-emerald-400">
                 ${rbBuyingPower.toFixed(2)}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">Live Instant Buying Power</div>
+              <div className="text-xs text-slate-400 font-mono mt-1">Live Instant Buying Power</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Robinhood Account #</span>
-                <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+                <div className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-xl font-black font-mono text-slate-900">
+              <div className="text-xl font-black font-mono text-white">
                 {robinhoodData?.accountNumber || 'NOT CONNECTED'}
               </div>
-              <div className="text-xs text-emerald-600 font-semibold mt-1">
-                {robinhoodData?.accountNumber ? 'Authenticated via Ed25519' : 'Authentication Pending'}
+              <div className="text-xs text-emerald-400 font-semibold mt-1">
+                {robinhoodData?.accountNumber ? 'Authenticated via Live Session Token' : 'Authentication Pending'}
               </div>
             </div>
           </div>
@@ -447,56 +436,56 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
 
           {/* 4 Schwab Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Schwab Liquidation Value</span>
-                <div className="p-2 rounded-xl bg-sky-50 text-sky-600">
+                <div className="p-2 rounded-xl bg-sky-950/60 text-sky-400 border border-sky-800/60">
                   <Landmark className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-slate-900">
+              <div className="text-2xl font-black font-mono text-white">
                 ${(schwabEquity + schwabCash).toFixed(2)}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">Total Equity + Balances</div>
+              <div className="text-xs text-slate-400 font-mono mt-1">Total Equity + Balances</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Available Cash</span>
-                <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+                <div className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700">
                   <Wallet className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-slate-900">
+              <div className="text-2xl font-black font-mono text-white">
                 ${schwabCash.toFixed(2)}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">Settled Cash in Schwab</div>
+              <div className="text-xs text-slate-400 font-mono mt-1">Settled Cash in Schwab</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Margin Buying Power</span>
-                <div className="p-2 rounded-xl bg-sky-50 text-sky-600">
+                <div className="p-2 rounded-xl bg-sky-950/60 text-sky-400 border border-sky-800/60">
                   <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black font-mono text-sky-700">
+              <div className="text-2xl font-black font-mono text-sky-400">
                 ${schwabBuyingPower.toFixed(2)}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">Charles Schwab Trader API</div>
+              <div className="text-xs text-slate-400 font-mono mt-1">Charles Schwab Trader API</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 mb-2">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 shadow-xl">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Connection State</span>
-                <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+                <div className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-lg font-black font-mono text-slate-900">
+              <div className="text-lg font-black font-mono text-white">
                 {schwabData?.connected ? 'CONNECTED' : 'OAUTH PENDING'}
               </div>
-              <div className="text-xs text-slate-500 font-mono mt-1">Callback: /schwab/callback</div>
+              <div className="text-xs text-slate-400 font-mono mt-1">Callback: /schwab/callback</div>
             </div>
           </div>
         </div>
@@ -505,19 +494,19 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
       {/* Holdings & Order History Navigation (for Consolidated, Crypto & Schwab) */}
       {selectedBrokerTab !== 'ROBINHOOD_STOCKS' && (
         <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setActiveSubTab('holdings')}
                 className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-all ${
                   activeSubTab === 'holdings'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    ? 'border-indigo-500 text-indigo-400'
+                    : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
                 <Briefcase className="w-4 h-4" />
                 <span>Details of Stocks You Own</span>
-                <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono">
+                <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-indigo-300 font-mono">
                   {selectedBrokerTab === 'CONSOLIDATED'
                     ? holdings.length
                     : selectedBrokerTab === 'ROBINHOOD_CRYPTO'
@@ -530,8 +519,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
                 onClick={() => setActiveSubTab('history')}
                 className={`flex items-center gap-2 pb-2 text-sm font-bold border-b-2 transition-all ${
                   activeSubTab === 'history'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    ? 'border-indigo-500 text-indigo-400'
+                    : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
                 <History className="w-4 h-4" />

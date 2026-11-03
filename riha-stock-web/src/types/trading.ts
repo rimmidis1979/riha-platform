@@ -23,6 +23,12 @@ export interface Holding {
   allocationPercent: number;
   sector?: string;
   broker?: 'ROBINHOOD' | 'CHARLES_SCHWAB';
+  volume?: number;
+  avgVolume?: number;
+  relativeVolume?: number;
+  volumeTrend?: 'SURGE' | 'ACCUMULATION' | 'DISTRIBUTION' | 'DRY_UP' | 'NORMAL';
+  volumeChangePct?: number;
+  volumePeriod?: '5D' | '10D' | '20D' | '30D';
   runStrategicLoop?: boolean;
   executionMode?: 'PAPERLESS' | 'ACTUAL';
   latestRecommendation?: 'BUY' | 'SELL' | 'HOLD';

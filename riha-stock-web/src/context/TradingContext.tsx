@@ -4,6 +4,12 @@ import { TrendingStock, TrendingFilters } from '../types/trending';
 import { useAuth } from './AuthContext';
 import { StockApiClient } from '../services/stockApiClient';
 
+export type MarketProviderType =
+  | 'CONSOLIDATED'
+  | 'ROBINHOOD_STOCKS'
+  | 'ROBINHOOD_CRYPTO'
+  | 'CHARLES_SCHWAB';
+
 interface ToastData {
   id: string;
   type: 'success' | 'error' | 'info';
@@ -34,6 +40,8 @@ interface TradingContextType {
   isScanning: boolean;
   toasts: ToastData[];
   dismissToast: (id: string) => void;
+  selectedProvider: MarketProviderType;
+  setSelectedProvider: (provider: MarketProviderType) => void;
 }
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
@@ -41,9 +49,21 @@ const TradingContext = createContext<TradingContextType | undefined>(undefined);
 const HOLDINGS_STORAGE_KEY = 'riha_stock_holdings_live';
 const HISTORY_STORAGE_KEY = 'riha_stock_history_live';
 const WATCHLIST_STORAGE_KEY = 'riha_stock_watchlist_personalized';
+const PROVIDER_STORAGE_KEY = 'riha_stock_selected_provider';
 
 export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, updateCashBalance, isAuthenticated } = useAuth();
+
+  // Active Market Provider selection
+  const [selectedProvider, setSelectedProviderState] = useState<MarketProviderType>(() => {
+    const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
+    return (saved as MarketProviderType) || 'ROBINHOOD_STOCKS';
+  });
+
+  const setSelectedProvider = (prov: MarketProviderType) => {
+    setSelectedProviderState(prov);
+    localStorage.setItem(PROVIDER_STORAGE_KEY, prov);
+  };
 
   // Holdings state (empty initially, updated by real trades or live backend)
   const [holdings, setHoldings] = useState<Holding[]>(() => {
@@ -491,6 +511,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isScanning,
         toasts,
         dismissToast,
+        selectedProvider,
+        setSelectedProvider,
       }}
     >
       {children}

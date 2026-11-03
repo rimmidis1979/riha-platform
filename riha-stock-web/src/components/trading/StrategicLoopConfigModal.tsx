@@ -122,22 +122,22 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-[#111827] rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-800 space-y-5 max-h-[90vh] overflow-y-auto text-slate-100">
         {/* HEADER */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
               <Zap className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-lg font-black text-slate-900">{target.symbol}</span>
-                <span className="text-xs px-2 py-0.5 rounded-md font-bold bg-slate-100 text-slate-600">
+                <span className="font-mono text-lg font-black text-slate-100">{target.symbol}</span>
+                <span className="text-xs px-2 py-0.5 rounded-md font-bold bg-slate-800 text-slate-300 border border-slate-700">
                   {target.companyName || target.symbol}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-400 mt-0.5">
                 Strategic Loop &amp; Autonomous Profit/Loss Threshold Configuration
               </p>
             </div>
@@ -145,47 +145,47 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* PRICE & COST BASIS OVERVIEW BAR */}
-        <div className="grid grid-cols-3 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 font-mono text-center">
+        <div className="grid grid-cols-3 gap-3 p-3.5 rounded-2xl bg-[#161d2d] border border-slate-800 font-mono text-center">
           <div>
             <span className="text-[10px] uppercase text-slate-400 font-sans block font-semibold">Market Price</span>
-            <span className="text-sm font-black text-slate-900">${target.currentPrice.toFixed(2)}</span>
+            <span className="text-sm font-black text-slate-100">${target.currentPrice.toFixed(2)}</span>
           </div>
           <div>
             <span className="text-[10px] uppercase text-slate-400 font-sans block font-semibold">Your Avg Cost</span>
-            <span className="text-sm font-black text-slate-900">${costBasis.toFixed(2)}</span>
+            <span className="text-sm font-black text-slate-100">${costBasis.toFixed(2)}</span>
           </div>
           <div>
             <span className="text-[10px] uppercase text-slate-400 font-sans block font-semibold">Shares Owned</span>
-            <span className="text-sm font-black text-slate-900">
+            <span className="text-sm font-black text-slate-100">
               {typeof target.shares === 'number' ? target.shares.toFixed(2) : '1.00'}
             </span>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 font-medium">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
+          <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/70 text-rose-300 text-xs flex items-center gap-2 font-medium">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
             <span>{errorMessage}</span>
           </div>
         )}
 
         <form onSubmit={handleSave} className="space-y-5">
           {/* 1. MASTER STRATEGIC LOOP TOGGLE */}
-          <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2">
+          <div className="p-4 rounded-2xl border border-slate-800 bg-[#161d2d] shadow-md space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-bold text-slate-900 block flex items-center gap-1.5">
-                  <Zap className={`w-4 h-4 ${runLoop ? 'text-emerald-600 fill-emerald-500 animate-pulse' : 'text-slate-400'}`} />
+                <label className="text-sm font-bold text-slate-100 block flex items-center gap-1.5">
+                  <Zap className={`w-4 h-4 ${runLoop ? 'text-emerald-400 fill-emerald-400 animate-pulse' : 'text-slate-500'}`} />
                   <span>Strategic Loop Active</span>
                 </label>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-400 mt-0.5">
                   Periodic 15-second multi-agent strategy scan across technicals, VWAP, RSI, and order flow.
                 </p>
               </div>
@@ -194,7 +194,7 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
                 type="button"
                 onClick={() => setRunLoop(!runLoop)}
                 className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out cursor-pointer ${
-                  runLoop ? 'bg-emerald-600' : 'bg-slate-300'
+                  runLoop ? 'bg-emerald-600' : 'bg-slate-700'
                 }`}
               >
                 <div
@@ -205,11 +205,11 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
               </button>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono">
-              <span className="text-slate-500 font-sans">Status:</span>
+            <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] font-mono">
+              <span className="text-slate-400 font-sans">Status:</span>
               <span
-                className={`font-bold px-2 py-0.5 rounded-full ${
-                  runLoop ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                className={`font-bold px-2 py-0.5 rounded-full border ${
+                  runLoop ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/60' : 'bg-slate-800 text-slate-400 border-slate-700'
                 }`}
               >
                 {runLoop ? '⚡ ACTIVE (Background Radar On)' : '⏸️ OFF (Manual Scan Only)'}
@@ -218,10 +218,10 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
           </div>
 
           {/* 2. TARGET PROFIT GAIN THRESHOLD (%) */}
-          <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-3">
+          <div className="p-4 rounded-2xl border border-slate-800 bg-[#161d2d] shadow-md space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
                 <span>Target Profit Margin (%)</span>
               </label>
               <div className="flex items-center gap-1 font-mono">
@@ -232,24 +232,24 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
                   max="100"
                   value={profitMargin}
                   onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 1)}
-                  className="w-16 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-900 text-right focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  className="w-16 px-2 py-1 bg-[#0b0f19] border border-slate-700 rounded-lg text-sm font-bold text-slate-100 text-right focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-mono"
                 />
-                <span className="text-xs font-bold text-slate-500">%</span>
+                <span className="text-xs font-bold text-slate-400">%</span>
               </div>
             </div>
 
             {/* Quick Presets */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-400 font-sans mr-1">Presets:</span>
+              <span className="text-[11px] font-semibold text-slate-400 font-mono mr-1">Presets:</span>
               {profitPresets.map((pct) => (
                 <button
                   type="button"
                   key={pct}
                   onClick={() => setProfitMargin(pct)}
-                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
+                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${
                     profitMargin === pct
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      ? 'bg-emerald-600 text-white shadow-xs border-emerald-500'
+                      : 'bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-400 border-emerald-800/60'
                   }`}
                 >
                   +{pct}%
@@ -258,19 +258,19 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
             </div>
 
             {/* Dynamic Calculated Exit Price */}
-            <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs flex items-center justify-between font-mono">
-              <span className="text-emerald-800 font-sans">Target Take-Profit Exit Price:</span>
-              <strong className="text-emerald-900 font-black text-sm">
+            <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-xs flex items-center justify-between font-mono">
+              <span className="text-emerald-300 font-sans">Target Take-Profit Exit Price:</span>
+              <strong className="text-emerald-400 font-black text-sm">
                 ${targetProfitPrice.toFixed(2)} (+{profitMargin.toFixed(1)}%)
               </strong>
             </div>
           </div>
 
           {/* 3. STOP-LOSS / DRAWDOWN MARGIN (%) */}
-          <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-3">
+          <div className="p-4 rounded-2xl border border-slate-800 bg-[#161d2d] shadow-md space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
-                <TrendingDown className="w-4 h-4 text-rose-600" />
+              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                <TrendingDown className="w-4 h-4 text-rose-400" />
                 <span>Stop-Loss Drawdown Margin (%)</span>
               </label>
               <div className="flex items-center gap-1 font-mono">
@@ -281,24 +281,24 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
                   max="50"
                   value={stopLossMargin}
                   onChange={(e) => setStopLossMargin(parseFloat(e.target.value) || 1)}
-                  className="w-16 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-900 text-right focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  className="w-16 px-2 py-1 bg-[#0b0f19] border border-slate-700 rounded-lg text-sm font-bold text-slate-100 text-right focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-mono"
                 />
-                <span className="text-xs font-bold text-slate-500">%</span>
+                <span className="text-xs font-bold text-slate-400">%</span>
               </div>
             </div>
 
             {/* Quick Presets */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-400 font-sans mr-1">Presets:</span>
+              <span className="text-[11px] font-semibold text-slate-400 font-mono mr-1">Presets:</span>
               {stopLossPresets.map((pct) => (
                 <button
                   type="button"
                   key={pct}
                   onClick={() => setStopLossMargin(pct)}
-                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
+                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${
                     stopLossMargin === pct
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
+                      ? 'bg-rose-600 text-white shadow-xs border-rose-500'
+                      : 'bg-rose-950/50 hover:bg-rose-900/60 text-rose-400 border-rose-800/60'
                   }`}
                 >
                   -{pct}%
@@ -307,54 +307,54 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
             </div>
 
             {/* Dynamic Calculated Stop Price */}
-            <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 text-xs flex items-center justify-between font-mono">
-              <span className="text-rose-800 font-sans">Stop-Loss Trigger Price:</span>
-              <strong className="text-rose-900 font-black text-sm">
+            <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs flex items-center justify-between font-mono">
+              <span className="text-rose-300 font-sans">Stop-Loss Trigger Price:</span>
+              <strong className="text-rose-400 font-black text-sm">
                 ${stopLossPrice.toFixed(2)} (-{stopLossMargin.toFixed(1)}%)
               </strong>
             </div>
 
-            <div className="text-[11px] text-slate-500 leading-relaxed flex items-start gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-200">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+            <div className="text-[11px] text-slate-400 leading-relaxed flex items-start gap-1.5 bg-[#0b0f19] p-2 rounded-lg border border-slate-800">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
               <span>
-                <strong>Smart AI Oversold Guard:</strong> If RSI drops below 30 into extreme capitulation rebound zones, orchestrator avoids panic-selling at market bottoms.
+                <strong className="text-slate-200">Smart AI Oversold Guard:</strong> If RSI drops below 30 into extreme capitulation rebound zones, orchestrator avoids panic-selling at market bottoms.
               </span>
             </div>
           </div>
 
           {/* 4. AUTONOMOUS ORDER EXECUTION (AUTO-TRADING) */}
-          <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-3">
+          <div className="p-4 rounded-2xl border border-slate-800 bg-[#161d2d] shadow-md space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-purple-600" />
-                <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <Bot className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono">
                   Autonomous Order Execution
                 </span>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-mono">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950/60 text-indigo-300 border border-indigo-800/60 font-mono">
                 Auto-Trade Settings
               </span>
             </div>
 
             <div className="space-y-2 pt-1">
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer">
+              <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={autoSell}
                   onChange={(e) => setAutoSell(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500"
+                  className="w-4 h-4 text-indigo-600 rounded-md border-slate-700 bg-[#0b0f19] focus:ring-indigo-500"
                 />
                 <span className="font-semibold">
                   Auto-Sell position when Target Profit (+{profitMargin.toFixed(1)}%) or Stop-Loss is hit
                 </span>
               </label>
 
-              <label className="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer">
+              <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={autoBuy}
                   onChange={(e) => setAutoBuy(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500"
+                  className="w-4 h-4 text-indigo-600 rounded-md border-slate-700 bg-[#0b0f19] focus:ring-indigo-500"
                 />
                 <span className="font-semibold">
                   Auto-Buy additional shares on institutional Strong-Buy signals
@@ -362,30 +362,30 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
               </label>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700">Max Shares per Auto-Order:</label>
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-300">Max Shares per Auto-Order:</label>
               <input
                 type="number"
                 min="1"
                 max="1000"
                 value={maxQty}
                 onChange={(e) => setMaxQty(parseInt(e.target.value) || 1)}
-                className="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 text-right focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                className="w-20 px-2 py-1 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs font-bold font-mono text-slate-100 text-right focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           {/* 5. EXECUTION PIPELINE MODE */}
           <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Execution Mode</label>
+            <label className="text-xs font-bold text-slate-300 block mb-1">Execution Mode</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setExecMode('PAPERLESS')}
                 className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                   execMode === 'PAPERLESS'
-                    ? 'bg-indigo-50 text-indigo-700 border-indigo-400 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                    ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500 shadow-xs'
+                    : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
                 }`}
               >
                 Paperless Sandbox
@@ -395,8 +395,8 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
                 onClick={() => setExecMode('ACTUAL')}
                 className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                   execMode === 'ACTUAL'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-400 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                    ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500 shadow-xs'
+                    : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
                 }`}
               >
                 Robinhood Live API
@@ -405,11 +405,11 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
           </div>
 
           {/* ACTIONS */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-colors"
             >
               Cancel
             </button>
@@ -417,7 +417,7 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2 rounded-xl font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-1.5"
             >
               {isSaving ? (
                 <>
@@ -437,3 +437,4 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
     </div>
   );
 };
+
