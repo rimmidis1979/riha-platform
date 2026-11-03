@@ -8,6 +8,7 @@ const MARKET_INGESTOR_URL = import.meta.env.VITE_RIHA_MARKET_INGESTOR_API_URL ||
 const RAG_SERVICE_URL = import.meta.env.VITE_RIHA_RAG_API_URL || (isBrowser ? '' : 'http://localhost:8088');
 const ROBINHOOD_MCP_URL = import.meta.env.VITE_RIHA_ROBINHOOD_MCP_URL || (isBrowser ? '' : 'http://localhost:8092');
 const MCP_GATEWAY_URL = import.meta.env.VITE_RIHA_MCP_GATEWAY_URL || (isBrowser ? '' : 'http://localhost:8084');
+const ORCHESTRATOR_URL = import.meta.env.VITE_RIHA_ORCHESTRATOR_API_URL || (isBrowser ? '' : 'http://localhost:8090');
 
 export class StockApiClient {
   private static token: string | null = localStorage.getItem('riha_auth_jwt');
@@ -335,6 +336,14 @@ export class StockApiClient {
 
   public static async disconnectRobinhood(): Promise<boolean> {
     localStorage.removeItem('riha_robinhood_api_key');
+    try {
+      await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/auth/logout`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+    } catch (e) {
+      // ignore
+    }
     try {
       await fetch(`${MCP_GATEWAY_URL}/api/v1/mcp-gateway/robinhood/credentials`, {
         method: 'DELETE',
@@ -742,6 +751,257 @@ export class StockApiClient {
       isPersonalized: Boolean(item.isPersonalized || item.isOwned),
       tags: item.tags || [item.primaryAlgorithm || 'MOMENTUM'],
     };
+  }
+
+  // ========================================================
+  // BACKBONE ORCHESTRATOR & DUAL BROKER (ROBINHOOD / SCHWAB)
+  // ========================================================
+
+  public static async getConsolidatedPortfolio(): Promise<any> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/portfolio/consolidated`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator consolidated portfolio fetch error:', e);
+    }
+    return null;
+  }
+
+  public static async getRobinhoodOrchestratedPortfolio(): Promise<any> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/portfolio`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator Robinhood portfolio fetch error:', e);
+    }
+    return null;
+  }
+
+  public static async getSchwabPortfolio(): Promise<any> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/schwab/portfolio`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator Schwab portfolio fetch error:', e);
+    }
+    return null;
+  }
+
+  public static async getSchwabAuthUrl(): Promise<{ authUrl: string; clientId: string }> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/schwab/auth-url`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to retrieve Schwab Authorization URL');
+    return await res.json();
+  }
+
+  public static async exchangeSchwabAuthCode(code: string, redirectUri?: string): Promise<any> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/schwab/callback`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ code, redirectUri }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Token exchange failed' }));
+      throw new Error(err.message || 'Token exchange failed');
+    }
+    return await res.json();
+  }
+
+  public static async getSchwabTransactions(): Promise<any[]> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/schwab/transactions`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator Schwab transactions fetch error:', e);
+    }
+    return [];
+  }
+
+  public static async updateStockStrategicLoop(
+    symbol: string,
+    runStrategicLoop: boolean,
+    executionMode?: 'PAPERLESS' | 'ACTUAL'
+  ): Promise<any> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/stocks/${encodeURIComponent(symbol)}/strategic-loop`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ runStrategicLoop, executionMode }),
+    });
+    if (!res.ok) throw new Error(`Failed to update strategic loop for ${symbol}`);
+    return await res.json();
+  }
+
+  // ========================================================
+  // ROBINHOOD STOCKS (EQUITIES) TRADING
+  // ========================================================
+
+  public static async getRobinhoodAuthStatus(): Promise<any> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/auth/status`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Robinhood auth status error:', e);
+    }
+    return { success: false, authenticated: false };
+  }
+
+  public static async authenticateRobinhoodLive(credentials: {
+    username?: string;
+    password?: string;
+    mfaCode?: string;
+    directToken?: string;
+  }): Promise<any> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/auth/login`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(credentials),
+    });
+    return await res.json().catch(() => ({ success: false, message: 'Robinhood login failed' }));
+  }
+
+  public static async syncRobinhoodStockOrders(): Promise<any[]> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/stocks/sync-orders`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Robinhood stock orders sync error:', e);
+    }
+    return [];
+  }
+
+  public static async getRobinhoodStocks(): Promise<any[]> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/stocks`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator Robinhood stocks fetch error:', e);
+    }
+    return [];
+  }
+
+  public static async getRobinhoodTrendingStocks(): Promise<any[]> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/stocks/trending`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator Robinhood trending stocks fetch error:', e);
+    }
+    return [];
+  }
+
+  public static async buyRobinhoodStock(
+    symbol: string,
+    quantity: number,
+    price?: number,
+    orderType: string = 'MARKET',
+    mode?: 'PAPERLESS' | 'ACTUAL'
+  ): Promise<any> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/stocks/buy`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ symbol, quantity, price, orderType, mode }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Robinhood stock buy failed' }));
+      throw new Error(err.message || 'Robinhood stock buy failed');
+    }
+    return await res.json();
+  }
+
+  public static async sellRobinhoodStock(
+    symbol: string,
+    quantity: number,
+    price?: number,
+    orderType: string = 'MARKET',
+    mode?: 'PAPERLESS' | 'ACTUAL'
+  ): Promise<any> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/robinhood/stocks/sell`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ symbol, quantity, price, orderType, mode }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Robinhood stock sell failed' }));
+      throw new Error(err.message || 'Robinhood stock sell failed');
+    }
+    return await res.json();
+  }
+
+  public static async updateBrokerMode(
+    broker: 'ROBINHOOD' | 'CHARLES_SCHWAB',
+    executionMode: 'PAPERLESS' | 'ACTUAL'
+  ): Promise<any> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/settings/broker-mode`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ broker, executionMode }),
+    });
+    if (!res.ok) throw new Error(`Failed to update execution mode for ${broker}`);
+    return await res.json();
+  }
+
+  public static async getGlobalSettings(): Promise<any> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/settings`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator settings fetch error:', e);
+    }
+    return null;
+  }
+
+  public static async updateGlobalSettings(globalExecutionMode?: 'PAPERLESS' | 'ACTUAL', autoTradingEnabled?: boolean): Promise<any> {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/settings`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ globalExecutionMode, autoTradingEnabled }),
+    });
+    if (!res.ok) throw new Error('Failed to update global settings');
+    return await res.json();
+  }
+
+  public static async getOrchestratedOrderHistory(timeRange: string = 'ALL'): Promise<any[]> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/orders/history?timeRange=${timeRange}`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator orders history fetch error:', e);
+    }
+    return [];
+  }
+
+  public static async getOrchestratedPnlSummary(timeRange: string = 'ALL'): Promise<any> {
+    try {
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/v1/orchestrator/orders/pnl-summary?timeRange=${timeRange}`, {
+        headers: this.getHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn('Orchestrator PnL summary fetch error:', e);
+    }
+    return null;
   }
 
   private static getHeaders(): HeadersInit {

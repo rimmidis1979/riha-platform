@@ -1,6 +1,10 @@
 package com.rihasoftwaresolutions.stockai.orchestrator.model;
 
 public class Enums {
+    public enum BrokerType {
+        ROBINHOOD, CHARLES_SCHWAB
+    }
+
     public enum OrderSide {
         BUY, SELL
     }
@@ -10,11 +14,11 @@ public class Enums {
     }
 
     public enum OrderStatus {
-        FILLED, PENDING, CANCELLED, REJECTED
+        FILLED, PENDING, CANCELLED, REJECTED, WORKING
     }
 
     public enum PurchaseOrigin {
-        RIHA_APP, ROBINHOOD_DIRECT
+        RIHA_APP, ROBINHOOD_DIRECT, SCHWAB_DIRECT
     }
 
     public enum ExecutionMode {

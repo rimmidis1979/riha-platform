@@ -1,11 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
+import path from 'path';
+
+const certPath = path.resolve(__dirname, 'certs/cert.pem');
+const keyPath = path.resolve(__dirname, 'certs/key.pem');
+const httpsConfig = fs.existsSync(certPath) && fs.existsSync(keyPath)
+  ? {
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+    }
+  : undefined;
 
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5175,
     host: true,
+    https: httpsConfig,
     proxy: {
       '/api/v1/auth': {
         target: process.env.VITE_RIHA_AUTH_API_URL || 'http://localhost:8080',
@@ -202,5 +214,10 @@ export default defineConfig({
         },
       },
     },
+  },
+  preview: {
+    port: 5175,
+    host: true,
+    https: httpsConfig,
   },
 });

@@ -46,6 +46,10 @@ public class TransactionRecordEntity {
     private OrderStatus status;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "broker", length = 32, nullable = false)
+    private BrokerType broker = BrokerType.ROBINHOOD;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "origin", length = 32, nullable = false)
     private PurchaseOrigin origin;
 
@@ -126,6 +130,9 @@ public class TransactionRecordEntity {
 
     public OrderStatus getStatus() { return status; }
     public void setStatus(OrderStatus status) { this.status = status; }
+
+    public BrokerType getBroker() { return broker; }
+    public void setBroker(BrokerType broker) { this.broker = broker; }
 
     public PurchaseOrigin getOrigin() { return origin; }
     public void setOrigin(PurchaseOrigin origin) { this.origin = origin; }

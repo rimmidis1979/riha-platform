@@ -17,6 +17,10 @@ public interface StockMonitorRepository extends JpaRepository<StockMonitorEntity
 
     List<StockMonitorEntity> findByIsContinuousMonitorTrue();
 
+    List<StockMonitorEntity> findByRunStrategicLoopTrueOrIsContinuousMonitorTrue();
+
+    List<StockMonitorEntity> findByUserIdAndBroker(String userId, com.rihasoftwaresolutions.stockai.orchestrator.model.Enums.BrokerType broker);
+
     List<StockMonitorEntity> findByUserIdAndIsOwnedTrue(String userId);
 
     Optional<StockMonitorEntity> findByUserIdAndSymbol(String userId, String symbol);

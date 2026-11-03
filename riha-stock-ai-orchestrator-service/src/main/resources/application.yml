@@ -33,6 +33,12 @@ riha:
       market-ingestor-url: ${RIHA_MARKET_INGESTOR_URL:http://localhost:8091}
       strategy-service-url: ${RIHA_STRATEGY_SERVICE_URL:http://localhost:8093}
       default-user-id: ${DEFAULT_USER_ID:ram-ai@rihasoftwaresolutions.com}
+    schwab:
+      client-id: ${SCHWAB_CLIENT_ID:XHQMsbAzLcGHBfFEf39lhayOLahbKGm1KhwjZ8mTgfNonvsz}
+      client-secret: ${SCHWAB_CLIENT_SECRET:weGTF4a8VjudICsfl15NBsmDUEqpptkIE7mC5B8wCKofzx9xaRdwGYaJ3AEPh0jf}
+      redirect-uri: ${SCHWAB_REDIRECT_URI:https://rihasoftwaresolutions.com}
+      oauth-base-url: ${SCHWAB_OAUTH_BASE_URL:https://api.schwabapi.com/v1/oauth}
+      trader-base-url: ${SCHWAB_TRADER_BASE_URL:https://api.schwabapi.com/trader/v1}
 
 management:
   endpoints:

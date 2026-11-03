@@ -3,17 +3,27 @@ import { useTrading } from '../../context/TradingContext';
 import { OrderSide } from '../../types/trading';
 import { History, Download, ArrowDownRight, ArrowUpRight, CheckCircle2, Clock } from 'lucide-react';
 
-export const TradeHistoryTable: React.FC = () => {
+interface TradeHistoryTableProps {
+  brokerFilter?: 'ALL' | 'ROBINHOOD' | 'CHARLES_SCHWAB';
+}
+
+export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({ brokerFilter = 'ALL' }) => {
   const { tradeHistory } = useTrading();
   const [filterSide, setFilterSide] = useState<'ALL' | OrderSide>('ALL');
+  const [filterMode, setFilterMode] = useState<'ALL' | 'ACTUAL' | 'PAPERLESS'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredHistory = tradeHistory.filter((item) => {
     const matchesSide = filterSide === 'ALL' || item.side === filterSide;
+    const matchesBroker =
+      brokerFilter === 'ALL' ||
+      (brokerFilter === 'ROBINHOOD' && (!item.broker || item.broker === 'ROBINHOOD')) ||
+      (brokerFilter === 'CHARLES_SCHWAB' && item.broker === 'CHARLES_SCHWAB');
+    const matchesMode = filterMode === 'ALL' || (item.executionMode || 'ACTUAL') === filterMode;
     const matchesSearch =
       item.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.companyName && item.companyName.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesSide && matchesSearch;
+    return matchesSide && matchesBroker && matchesMode && matchesSearch;
   });
 
   const exportCsv = () => {
@@ -89,6 +99,8 @@ export const TradeHistoryTable: React.FC = () => {
               <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold uppercase text-slate-500">
                 <th className="py-3 px-4 font-semibold">Order ID</th>
                 <th className="py-3 px-4 font-semibold">Timestamp</th>
+                <th className="py-3 px-4 font-semibold text-center">Broker</th>
+                <th className="py-3 px-4 font-semibold text-center">Mode</th>
                 <th className="py-3 px-4 font-semibold text-center">Type / Side</th>
                 <th className="py-3 px-4 font-semibold">Asset / Symbol</th>
                 <th className="py-3 px-4 font-semibold text-right">Shares</th>
@@ -100,6 +112,8 @@ export const TradeHistoryTable: React.FC = () => {
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredHistory.map((item) => {
                 const isBuy = item.side === 'BUY';
+                const isSchwab = item.broker === 'CHARLES_SCHWAB';
+                const isPaper = item.executionMode === 'PAPERLESS';
 
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
@@ -111,6 +125,32 @@ export const TradeHistoryTable: React.FC = () => {
                     {/* Timestamp */}
                     <td className="py-3.5 px-4 text-xs font-mono text-slate-600">
                       {item.timestamp}
+                    </td>
+
+                    {/* Broker Badge */}
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          isSchwab
+                            ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {isSchwab ? 'Schwab' : 'Robinhood'}
+                      </span>
+                    </td>
+
+                    {/* Execution Mode */}
+                    <td className="py-3.5 px-4 text-center">
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          isPaper
+                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {isPaper ? 'Paperless' : 'Actual'}
+                      </span>
                     </td>
 
                     {/* Side (BUY / SELL) */}

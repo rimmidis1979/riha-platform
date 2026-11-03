@@ -30,8 +30,15 @@ public class StockMonitorEntity {
     @Column(name = "company_name", length = 256)
     private String companyName;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "broker", length = 32, nullable = false)
+    private BrokerType broker = BrokerType.ROBINHOOD;
+
     @Column(name = "is_owned", nullable = false)
     private boolean isOwned = false;
+
+    @Column(name = "run_strategic_loop", nullable = false)
+    private boolean runStrategicLoop = true;
 
     @Column(name = "is_continuous_monitor", nullable = false)
     private boolean isContinuousMonitor = true;
@@ -92,6 +99,12 @@ public class StockMonitorEntity {
 
     public String getCompanyName() { return companyName; }
     public void setCompanyName(String companyName) { this.companyName = companyName; }
+
+    public BrokerType getBroker() { return broker; }
+    public void setBroker(BrokerType broker) { this.broker = broker; }
+
+    public boolean isRunStrategicLoop() { return runStrategicLoop; }
+    public void setRunStrategicLoop(boolean runStrategicLoop) { this.runStrategicLoop = runStrategicLoop; }
 
     public boolean isOwned() { return isOwned; }
     public void setOwned(boolean owned) { isOwned = owned; }

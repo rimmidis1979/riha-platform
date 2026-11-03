@@ -18,6 +18,8 @@ public interface TransactionRecordRepository extends JpaRepository<TransactionRe
 
     List<TransactionRecordEntity> findByUserIdOrderByExecutedAtDesc(String userId);
 
+    List<TransactionRecordEntity> findByUserIdAndBrokerOrderByExecutedAtDesc(String userId, BrokerType broker);
+
     List<TransactionRecordEntity> findByUserIdAndExecutionModeOrderByExecutedAtDesc(String userId, ExecutionMode executionMode);
 
     List<TransactionRecordEntity> findByUserIdAndOriginOrderByExecutedAtDesc(String userId, PurchaseOrigin origin);

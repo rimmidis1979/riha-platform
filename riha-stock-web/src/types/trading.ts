@@ -22,6 +22,12 @@ export interface Holding {
   dayReturnPercent?: number;
   allocationPercent: number;
   sector?: string;
+  broker?: 'ROBINHOOD' | 'CHARLES_SCHWAB';
+  runStrategicLoop?: boolean;
+  executionMode?: 'PAPERLESS' | 'ACTUAL';
+  latestRecommendation?: 'BUY' | 'SELL' | 'HOLD';
+  strategyConfidenceScore?: number;
+  strategyDiagnosisSummary?: string;
 }
 
 export interface TradeOrder {
@@ -38,6 +44,12 @@ export interface TradeOrder {
   timestamp: string;
   status: OrderStatus;
   notes?: string;
+  broker?: 'ROBINHOOD' | 'CHARLES_SCHWAB';
+  executionMode?: 'PAPERLESS' | 'ACTUAL';
+  origin?: 'RIHA_APP' | 'ROBINHOOD_DIRECT' | 'SCHWAB_DIRECT';
+  unrealizedPnlUsd?: number;
+  realizedPnlUsd?: number;
+  recommendationLabel?: string;
 }
 
 export interface PerformanceDataPoint {

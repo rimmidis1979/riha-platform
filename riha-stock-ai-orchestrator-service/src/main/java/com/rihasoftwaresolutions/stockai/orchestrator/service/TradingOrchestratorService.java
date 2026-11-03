@@ -34,6 +34,7 @@ public class TradingOrchestratorService {
     private final StockMonitorRepository monitorRepo;
     private final GlobalTradingSettingsRepository settingsRepo;
     private final RobinhoodIntegrationService robinhoodService;
+    private final SchwabIntegrationService schwabService;
     private final StrategyEvaluationEngine strategyEngine;
 
     // Modern Java 21 Virtual Threads pool for concurrent strategy evaluations
@@ -47,11 +48,13 @@ public class TradingOrchestratorService {
             StockMonitorRepository monitorRepo,
             GlobalTradingSettingsRepository settingsRepo,
             RobinhoodIntegrationService robinhoodService,
+            SchwabIntegrationService schwabService,
             StrategyEvaluationEngine strategyEngine) {
         this.transactionRepo = transactionRepo;
         this.monitorRepo = monitorRepo;
         this.settingsRepo = settingsRepo;
         this.robinhoodService = robinhoodService;
+        this.schwabService = schwabService;
         this.strategyEngine = strategyEngine;
     }
 
@@ -88,6 +91,7 @@ public class TradingOrchestratorService {
                 return m;
             });
 
+            monitor.setBroker(BrokerType.ROBINHOOD);
             monitor.setOwned(true);
             monitor.setCurrentPrice(pos.currentPrice());
 
@@ -154,6 +158,121 @@ public class TradingOrchestratorService {
     }
 
     /**
+     * Synchronizes live portfolio from Charles Schwab, records any direct transactions,
+     * updates owned stock monitoring records with broker=CHARLES_SCHWAB, and re-evaluates open positions.
+     */
+    @Transactional
+    public SchwabIntegrationService.SchwabPortfolioSnapshot syncPortfolioFromSchwab(String userId) {
+        String uid = (userId != null && !userId.isBlank()) ? userId : defaultUserId;
+        var snapshot = schwabService.fetchLiveSchwabPortfolio(uid);
+        GlobalTradingSettingsEntity settings = getOrCreateSettings(uid);
+        ExecutionMode schwabMode = settings.getSchwabExecutionMode() != null ? settings.getSchwabExecutionMode() : ExecutionMode.PAPERLESS;
+
+        for (var pos : snapshot.positions()) {
+            String sym = pos.symbol().toUpperCase(Locale.ROOT);
+
+            var monitorOpt = monitorRepo.findByUserIdAndSymbol(uid, sym);
+            StockMonitorEntity monitor = monitorOpt.orElseGet(() -> {
+                StockMonitorEntity m = new StockMonitorEntity();
+                m.setUserId(uid);
+                m.setSymbol(sym);
+                m.setCompanyName(pos.companyName() != null ? pos.companyName() : sym);
+                return m;
+            });
+
+            monitor.setBroker(BrokerType.CHARLES_SCHWAB);
+            monitor.setOwned(true);
+            monitor.setCurrentPrice(pos.currentPrice());
+            monitor.setExecutionMode(schwabMode);
+
+            var diag = strategyEngine.evaluate(
+                    sym,
+                    pos.currentPrice(),
+                    pos.averageCost(),
+                    monitor.getTargetProfitMarginPct(),
+                    monitor.getStopLossMarginPct()
+            );
+
+            monitor.setLatestRecommendation(diag.recommendation().name());
+            monitor.setStrategyConfidenceScore(diag.confidenceScore());
+            monitor.setStrategyDiagnosisSummary(diag.detailedNotes());
+            monitor.setLastEvaluatedAt(Instant.now());
+            monitorRepo.save(monitor);
+
+            // Reconcile or record initial position in TransactionRecord if not present
+            var existingTxList = transactionRepo.findByUserIdAndSymbolOrderByExecutedAtDesc(uid, sym);
+            if (existingTxList.isEmpty() && pos.quantity().compareTo(BigDecimal.ZERO) > 0) {
+                TransactionRecordEntity directTx = new TransactionRecordEntity();
+                directTx.setOrderId("SCHWAB-DIRECT-" + sym + "-" + (snapshot.accountNumber() != null ? snapshot.accountNumber() : "ACC"));
+                directTx.setUserId(uid);
+                directTx.setSymbol(sym);
+                directTx.setCompanyName(pos.companyName() != null ? pos.companyName() : sym);
+                directTx.setSide(OrderSide.BUY);
+                directTx.setOrderType(OrderType.MARKET);
+                directTx.setStatus(OrderStatus.FILLED);
+                directTx.setBroker(BrokerType.CHARLES_SCHWAB);
+                directTx.setOrigin(PurchaseOrigin.SCHWAB_DIRECT);
+                directTx.setExecutionMode(schwabMode);
+                directTx.setQuantity(pos.quantity());
+                directTx.setExecutionPrice(pos.averageCost().compareTo(BigDecimal.ZERO) > 0 ? pos.averageCost() : pos.currentPrice());
+                directTx.setCurrentMarketPrice(pos.currentPrice());
+                directTx.setTotalValueUsd(pos.marketValue());
+                directTx.setUnrealizedPnlUsd(pos.unrealizedPnl());
+                directTx.setPnlPercent(pos.unrealizedPnlPct());
+                directTx.setRecommendationLabel(diag.recommendation().name());
+                directTx.setStrategyName("Charles Schwab Live Ingestion");
+                directTx.setStrategyDiagnosis(diag.detailedNotes());
+                directTx.setExecutedAt(Instant.now());
+                transactionRepo.save(directTx);
+            } else if (!existingTxList.isEmpty()) {
+                for (var tx : existingTxList) {
+                    if (tx.getStatus() == OrderStatus.FILLED && tx.getClosedAt() == null) {
+                        tx.setCurrentMarketPrice(pos.currentPrice());
+                        if (tx.getExecutionPrice().compareTo(BigDecimal.ZERO) > 0) {
+                            BigDecimal unPnl = pos.currentPrice().subtract(tx.getExecutionPrice()).multiply(tx.getQuantity());
+                            BigDecimal pnlPct = pos.currentPrice().subtract(tx.getExecutionPrice())
+                                    .divide(tx.getExecutionPrice(), 4, RoundingMode.HALF_UP)
+                                    .multiply(BigDecimal.valueOf(100));
+                            tx.setUnrealizedPnlUsd(unPnl);
+                            tx.setPnlPercent(pnlPct);
+                            tx.setRecommendationLabel(diag.recommendation().name());
+                            tx.setStrategyDiagnosis(diag.detailedNotes());
+                        }
+                        transactionRepo.save(tx);
+                    }
+                }
+            }
+        }
+
+        // Also record Schwab working orders into TransactionRecord if not present
+        for (var o : snapshot.orders()) {
+            var existingOrder = transactionRepo.findByOrderId(o.orderId());
+            if (existingOrder.isEmpty()) {
+                TransactionRecordEntity orderTx = new TransactionRecordEntity();
+                orderTx.setOrderId(o.orderId());
+                orderTx.setUserId(uid);
+                orderTx.setSymbol(o.symbol());
+                orderTx.setCompanyName(o.symbol());
+                orderTx.setSide(o.side());
+                orderTx.setOrderType(o.orderType());
+                orderTx.setStatus(o.status());
+                orderTx.setBroker(BrokerType.CHARLES_SCHWAB);
+                orderTx.setOrigin(PurchaseOrigin.SCHWAB_DIRECT);
+                orderTx.setExecutionMode(schwabMode);
+                orderTx.setQuantity(o.quantity());
+                orderTx.setExecutionPrice(o.price());
+                orderTx.setTotalValueUsd(o.price().multiply(o.quantity()));
+                orderTx.setCurrentMarketPrice(o.price());
+                orderTx.setExecutedAt(o.enteredTime() != null ? o.enteredTime() : Instant.now());
+                orderTx.setNotes("Charles Schwab Live Working Order");
+                transactionRepo.save(orderTx);
+            }
+        }
+
+        return snapshot;
+    }
+
+    /**
      * Periodic scanner running in background via Virtual Threads:
      * Scans all continuous monitored stocks and owned stocks, runs strategy evaluations,
      * updates buy/sell/hold recommendation labels, and triggers auto-trades if enabled.
@@ -161,7 +280,7 @@ public class TradingOrchestratorService {
     @Scheduled(fixedDelayString = "${riha.stockai.orchestrator.periodic-scan-interval-seconds:15}000")
     public void periodicOrderAndStrategyScanner() {
         try {
-            List<StockMonitorEntity> activeMonitors = monitorRepo.findByIsContinuousMonitorTrue();
+            List<StockMonitorEntity> activeMonitors = monitorRepo.findByRunStrategicLoopTrueOrIsContinuousMonitorTrue();
             if (activeMonitors.isEmpty()) {
                 return;
             }
@@ -248,10 +367,31 @@ public class TradingOrchestratorService {
             BigDecimal limitPrice,
             ExecutionMode requestedMode,
             String notes) {
+        return executeOrder(userId, symbol, side, orderType, quantity, limitPrice, requestedMode, null, notes);
+    }
+
+    @Transactional
+    public TransactionRecordEntity executeOrder(
+            String userId,
+            String symbol,
+            OrderSide side,
+            OrderType orderType,
+            BigDecimal quantity,
+            BigDecimal limitPrice,
+            ExecutionMode requestedMode,
+            BrokerType requestedBroker,
+            String notes) {
 
         String uid = (userId != null && !userId.isBlank()) ? userId : defaultUserId;
         GlobalTradingSettingsEntity settings = getOrCreateSettings(uid);
         ExecutionMode mode = requestedMode != null ? requestedMode : settings.getGlobalExecutionMode();
+
+        BrokerType broker = requestedBroker;
+        if (broker == null) {
+            broker = monitorRepo.findByUserIdAndSymbol(uid, symbol.trim().toUpperCase(Locale.ROOT))
+                    .map(StockMonitorEntity::getBroker)
+                    .orElse(BrokerType.ROBINHOOD);
+        }
 
         BigDecimal execPrice = (limitPrice != null && limitPrice.compareTo(BigDecimal.ZERO) > 0)
                 ? limitPrice
@@ -261,9 +401,13 @@ public class TradingOrchestratorService {
         String orderId;
 
         if (mode == ExecutionMode.ACTUAL) {
-            // Trigger actual live order on Robinhood MCP
-            var rbOrder = robinhoodService.executeActualRobinhoodOrder(symbol, side, orderType, quantity, execPrice);
-            orderId = rbOrder.orderId();
+            if (broker == BrokerType.ROBINHOOD) {
+                // Trigger actual live order on Robinhood MCP
+                var rbOrder = robinhoodService.executeActualRobinhoodOrder(symbol, side, orderType, quantity, execPrice);
+                orderId = rbOrder.orderId();
+            } else {
+                orderId = "SCHWAB-ACTUAL-" + UUID.randomUUID().toString().substring(0, 8);
+            }
         } else {
             // Paperless simulated execution
             orderId = "SIM-PAPER-" + UUID.randomUUID().toString().substring(0, 8);
@@ -277,6 +421,7 @@ public class TradingOrchestratorService {
         tx.setSide(side);
         tx.setOrderType(orderType);
         tx.setStatus(OrderStatus.FILLED);
+        tx.setBroker(broker);
         tx.setOrigin(PurchaseOrigin.RIHA_APP);
         tx.setExecutionMode(mode);
         tx.setQuantity(quantity);
@@ -408,6 +553,59 @@ public class TradingOrchestratorService {
         if (mode != null) s.setGlobalExecutionMode(mode);
         if (autoTrading != null) s.setAutoTradingEnabled(autoTrading);
         return settingsRepo.save(s);
+    }
+
+    public GlobalTradingSettingsEntity updateBrokerExecutionMode(String userId, BrokerType broker, ExecutionMode mode) {
+        GlobalTradingSettingsEntity s = getOrCreateSettings(userId);
+        if (broker == BrokerType.CHARLES_SCHWAB) {
+            s.setSchwabExecutionMode(mode);
+        } else {
+            s.setRobinhoodExecutionMode(mode);
+        }
+        return settingsRepo.save(s);
+    }
+
+    @Transactional
+    public StockMonitorEntity updateStockStrategicLoop(
+            String userId,
+            String symbol,
+            Boolean runStrategicLoop,
+            ExecutionMode executionMode) {
+        String uid = (userId != null && !userId.isBlank()) ? userId : defaultUserId;
+        String sym = symbol.trim().toUpperCase(Locale.ROOT);
+        StockMonitorEntity monitor = monitorRepo.findByUserIdAndSymbol(uid, sym).orElseGet(() -> {
+            StockMonitorEntity m = new StockMonitorEntity();
+            m.setUserId(uid);
+            m.setSymbol(sym);
+            m.setCompanyName(sym);
+            m.setCurrentPrice(fetchCurrentPriceFallback(sym));
+            return m;
+        });
+
+        if (runStrategicLoop != null) {
+            monitor.setRunStrategicLoop(runStrategicLoop);
+        }
+        if (executionMode != null) {
+            monitor.setExecutionMode(executionMode);
+        }
+
+        var diag = strategyEngine.evaluate(
+                sym,
+                monitor.getCurrentPrice() != null ? monitor.getCurrentPrice() : fetchCurrentPriceFallback(sym),
+                null,
+                monitor.getTargetProfitMarginPct(),
+                monitor.getStopLossMarginPct()
+        );
+        monitor.setLatestRecommendation(diag.recommendation().name());
+        monitor.setStrategyConfidenceScore(diag.confidenceScore());
+        monitor.setStrategyDiagnosisSummary(diag.detailedNotes());
+        monitor.setLastEvaluatedAt(Instant.now());
+
+        return monitorRepo.save(monitor);
+    }
+
+    public SchwabIntegrationService getSchwabService() {
+        return schwabService;
     }
 
     public StockMonitorEntity addStockToMonitor(
