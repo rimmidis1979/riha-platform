@@ -38,7 +38,7 @@ public class StockMonitorEntity {
     private boolean isOwned = false;
 
     @Column(name = "run_strategic_loop", nullable = false)
-    private boolean runStrategicLoop = true;
+    private boolean runStrategicLoop = false;
 
     @Column(name = "is_continuous_monitor", nullable = false)
     private boolean isContinuousMonitor = true;

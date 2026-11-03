@@ -1766,6 +1766,9 @@ public class StockAgenticWorkflowCoordinator {
         List<StockTradeTransactionEntity> txs = getAllTransactions(userEmail);
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("masterAudit", masterAudit);
+        if (masterAudit != null && masterAudit.get("auditTrail") != null) {
+            res.put("auditTrail", masterAudit.get("auditTrail"));
+        }
         res.put("transactions", txs);
         res.put("generatedAt", Instant.now().toString());
         return res;

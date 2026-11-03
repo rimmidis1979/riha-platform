@@ -99,7 +99,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
               dayGainPercent: unPnlPct,
               allocationPercent: 50,
               broker: 'ROBINHOOD',
-              runStrategicLoop: true,
+              runStrategicLoop: false,
               executionMode: settings?.robinhoodExecutionMode || 'ACTUAL',
               latestRecommendation: 'HOLD',
             });
@@ -130,7 +130,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onN
               dayGainPercent: unPnlPct,
               allocationPercent: 50,
               broker: 'CHARLES_SCHWAB',
-              runStrategicLoop: true,
+              runStrategicLoop: false,
               executionMode: settings?.schwabExecutionMode || 'PAPERLESS',
               latestRecommendation: 'HOLD',
             });

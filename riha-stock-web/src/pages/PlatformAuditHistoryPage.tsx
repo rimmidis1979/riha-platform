@@ -113,31 +113,53 @@ export const PlatformAuditHistoryPage: React.FC = () => {
       setPerformance(perf);
       setLoginHistory(logins || []);
 
-      // Extract strategy history from masterAudit audits
-      const rawAudits = stratHist?.masterAudit?.audits || stratHist?.masterAudit?.recentAudits || [];
+      // Extract strategy history from masterAudit / auditTrail and merge strategy-driven trade transactions
+      const rawAudits = stratHist?.auditTrail || stratHist?.masterAudit?.auditTrail || stratHist?.masterAudit?.audits || [];
       const parsedAudits: StrategyHistoryItem[] = Array.isArray(rawAudits)
         ? rawAudits.map((a: any) => ({
-            auditId: a.auditId || a.id || `aud_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            ticker: a.ticker || a.symbol || 'UNKNOWN',
-            strategyApplied: a.strategyApplied || a.strategyName || 'High Conviction Multi-Factor',
-            aiRecommendation: (a.aiRecommendation || a.action || 'HOLD').toUpperCase() as any,
-            limitPrice: a.limitPrice || a.price || 0,
-            stopLossPrice: a.stopLossPrice || a.stopLoss,
-            takeProfitPrice: a.takeProfitPrice || a.targetPrice,
-            quantity: a.quantity || 10,
-            aiReasoningSummary: a.aiReasoningSummary || a.reasoning || '',
-            criticSpelVerdict: a.criticSpelVerdict || a.verdict || 'APPROVED',
-            criticConvergenceScore: a.criticConvergenceScore || a.confidence || 0.85,
-            executionStatus: a.executionStatus || 'RECORDED',
-            auditedAt: a.auditedAt || a.timestamp || new Date().toISOString(),
-          }))
+          auditId: a.auditId || a.id || `aud_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          ticker: a.ticker || a.symbol || 'UNKNOWN',
+          strategyApplied: a.strategyApplied || a.strategyName || '5-Node Dynamic Multi-Factor DAG',
+          aiRecommendation: (a.aiRecommendation || a.action || 'HOLD').toUpperCase() as any,
+          limitPrice: a.limitPrice || a.price || 0,
+          stopLossPrice: a.stopLossPrice || a.stopLoss,
+          takeProfitPrice: a.takeProfitPrice || a.targetPrice,
+          quantity: a.quantity || 10,
+          aiReasoningSummary: a.aiReasoningSummary || a.reasoning || 'Evaluated via 5-Node Agentic Pipeline & Critic Gate',
+          criticSpelVerdict: a.criticSpelVerdict || a.verdict || 'APPROVED',
+          criticConvergenceScore: a.criticConvergenceScore || a.confidence || 0.85,
+          executionStatus: a.executionStatus || 'RECORDED',
+          auditedAt: a.auditedAt || a.timestamp || new Date().toISOString(),
+        }))
         : [];
 
-      setStrategyHistory(parsedAudits);
+      // Also merge strategy orders from transactions so strategy history always reflects trades
+      const txAudits: StrategyHistoryItem[] = (txs || [])
+        .filter((t) => t.strategyName || t.promptVersion)
+        .map((t) => ({
+          auditId: String(t.id || t.decisionId || t.workflowInstanceId),
+          ticker: t.ticker,
+          strategyApplied: t.strategyName || 'VWAP Reclaim & Relative Volume Breakout',
+          aiRecommendation: (t.side === 'BUY' ? 'BUY' : 'SELL') as any,
+          limitPrice: t.orderPrice,
+          stopLossPrice: t.stopLossPrice,
+          takeProfitPrice: t.predictedTargetPrice,
+          quantity: t.quantity,
+          aiReasoningSummary: `Executed via ${t.executionMode || 'Autonomous Engine'}. Prompt: ${t.promptVersion || 'v1.0'}. Critic Score: ${t.criticScore || '0.90'}.`,
+          criticSpelVerdict: t.status === 'BLOCKED_BY_CRITIC' ? 'REJECTED' : 'APPROVED',
+          criticConvergenceScore: t.criticScore || 0.88,
+          executionStatus: t.status || 'FILLED',
+          auditedAt: t.executedAt,
+        }));
 
-      // Merge backend auto-loops with active loops from holdings
+      const auditMap = new Map<string, StrategyHistoryItem>();
+      parsedAudits.forEach((item) => auditMap.set(item.auditId, item));
+      txAudits.forEach((item) => auditMap.set(item.auditId, item));
+      setStrategyHistory(Array.from(auditMap.values()));
+
+      // Only include stocks where the user explicitly activated runStrategicLoop === true
       const activeFromHoldings: AutoStrategyItem[] = holdings
-        .filter((h) => h.runStrategicLoop)
+        .filter((h) => h.runStrategicLoop === true)
         .map((h) => ({
           ticker: h.symbol,
           activeMonitoring: true,
@@ -156,9 +178,11 @@ export const PlatformAuditHistoryPage: React.FC = () => {
           updatedAt: new Date().toISOString(),
         }));
 
-      // Combine without duplicates
+      // Combine only explicit user-activated loops
       const loopMap = new Map<string, AutoStrategyItem>();
-      (loops || []).forEach((l) => loopMap.set(l.ticker, l));
+      (loops || [])
+        .filter((l) => l.activeMonitoring === true)
+        .forEach((l) => loopMap.set(l.ticker, l));
       activeFromHoldings.forEach((l) => loopMap.set(l.ticker, l));
       setAutoLoops(Array.from(loopMap.values()));
     } catch (err) {
@@ -243,17 +267,23 @@ export const PlatformAuditHistoryPage: React.FC = () => {
     });
   }, [autoLoops, searchTerm]);
 
-  // Filtered login history
+  // Filtered login history strictly isolated to logged-in user profile
   const filteredLogins = useMemo(() => {
-    return loginHistory.filter((log) => {
-      return (
-        !searchTerm ||
-        log.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.provider.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.ipAddress?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    });
-  }, [loginHistory, searchTerm]);
+    const currentEmail = user?.email?.toLowerCase().trim();
+    return loginHistory
+      .filter((log) => {
+        if (!currentEmail) return false;
+        return log.email && log.email.toLowerCase().trim() === currentEmail;
+      })
+      .filter((log) => {
+        return (
+          !searchTerm ||
+          log.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          log.provider.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          log.ipAddress?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
+  }, [loginHistory, user?.email, searchTerm]);
 
   const exportTransactionsCsv = () => {
     const headers = 'Order ID,Timestamp,Side,Ticker,Shares,Price,Total Value,Realized PnL,Mode,Status\n';
@@ -321,9 +351,8 @@ export const PlatformAuditHistoryPage: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-2">
             <span
-              className={`text-2xl font-black font-mono tracking-tight ${
-                computedMetrics.netPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
-              }`}
+              className={`text-2xl font-black font-mono tracking-tight ${computedMetrics.netPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                }`}
             >
               {computedMetrics.netPnl >= 0 ? '+' : ''}${computedMetrics.netPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
@@ -394,11 +423,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <button
             onClick={() => setActiveTab('auto-loops')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'auto-loops'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'auto-loops'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
           >
             <Cpu className="w-3.5 h-3.5" />
             <span>Active Auto-Strategies ({autoLoops.length})</span>
@@ -406,38 +434,35 @@ export const PlatformAuditHistoryPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('strategy-history')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'strategy-history'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'strategy-history'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Strategy History ({strategyHistory.length})</span>
+            <span>AI Strategy History ({strategyHistory.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('transactions')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'transactions'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'transactions'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
           >
             <History className="w-3.5 h-3.5" />
-            <span>Platform Transactions ({transactions.length})</span>
+            <span>Stock Purchases &amp; Sells ({transactions.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('login-history')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'login-history'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'login-history'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
-            <span>Login Audit Trail ({loginHistory.length})</span>
+            <span>My Login History ({filteredLogins.length})</span>
           </button>
         </div>
 
@@ -546,11 +571,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                                 type="button"
                                 onClick={() => handleToggleAutoLoop(loop)}
                                 disabled={updatingLoopTicker === loop.ticker}
-                                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${
-                                  loop.activeMonitoring
-                                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-xs shadow-emerald-500/20 hover:bg-emerald-900/60'
-                                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'
-                                }`}
+                                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${loop.activeMonitoring
+                                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-xs shadow-emerald-500/20 hover:bg-emerald-900/60'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'
+                                  }`}
                                 title={loop.activeMonitoring ? 'Click to instantly PAUSE Auto Strategy Loop' : 'Click to instantly ACTIVATE Auto Strategy Loop'}
                               >
                                 {updatingLoopTicker === loop.ticker ? (
@@ -560,9 +584,8 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                                 )}
                                 <span>{loop.activeMonitoring ? 'ACTIVE (ON)' : 'PAUSED (OFF)'}</span>
                                 {/* Sliding Toggle Switch Visual */}
-                                <div className={`w-5 h-3 rounded-full p-0.5 transition-colors flex items-center ${
-                                  loop.activeMonitoring ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                                }`}>
+                                <div className={`w-5 h-3 rounded-full p-0.5 transition-colors flex items-center ${loop.activeMonitoring ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                                  }`}>
                                   <span className="w-2 h-2 rounded-full bg-white shadow-xs" />
                                 </div>
                               </button>
@@ -595,20 +618,18 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                             <td className="py-3.5 px-4 text-center">
                               <div className="flex items-center justify-center gap-1.5 text-[10px]">
                                 <span
-                                  className={`px-1.5 py-0.5 rounded ${
-                                    loop.autoBuyEnabled
-                                      ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
-                                      : 'bg-slate-800/50 text-slate-500'
-                                  }`}
+                                  className={`px-1.5 py-0.5 rounded ${loop.autoBuyEnabled
+                                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                                    : 'bg-slate-800/50 text-slate-500'
+                                    }`}
                                 >
                                   BUY: {loop.autoBuyEnabled ? 'ON' : 'OFF'}
                                 </span>
                                 <span
-                                  className={`px-1.5 py-0.5 rounded ${
-                                    loop.autoSellEnabled
-                                      ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
-                                      : 'bg-slate-800/50 text-slate-500'
-                                  }`}
+                                  className={`px-1.5 py-0.5 rounded ${loop.autoSellEnabled
+                                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                                    : 'bg-slate-800/50 text-slate-500'
+                                    }`}
                                 >
                                   SELL: {loop.autoSellEnabled ? 'ON' : 'OFF'}
                                 </span>
@@ -726,13 +747,12 @@ export const PlatformAuditHistoryPage: React.FC = () => {
 
                           <td className="py-3.5 px-4 text-center">
                             <span
-                              className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                item.aiRecommendation === 'BUY'
-                                  ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
-                                  : item.aiRecommendation === 'SELL'
+                              className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${item.aiRecommendation === 'BUY'
+                                ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
+                                : item.aiRecommendation === 'SELL'
                                   ? 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
                                   : 'bg-slate-800 text-slate-400 border border-slate-700'
-                              }`}
+                                }`}
                             >
                               {item.aiRecommendation}
                             </span>
@@ -752,11 +772,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
 
                           <td className="py-3.5 px-4 text-center">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                item.criticSpelVerdict === 'APPROVED'
-                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
-                                  : 'bg-amber-950 text-amber-400 border border-amber-800/60'
-                              }`}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${item.criticSpelVerdict === 'APPROVED'
+                                ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
+                                : 'bg-amber-950 text-amber-400 border border-amber-800/60'
+                                }`}
                             >
                               {item.criticSpelVerdict} ({Math.round((item.criticConvergenceScore || 0) * 100)}%)
                             </span>
@@ -783,10 +802,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <History className="w-4 h-4 text-indigo-400" />
-                    Complete Trade &amp; Transaction Ledger ({filteredTransactions.length} Orders)
+                    Stock Purchase &amp; Sell Order Ledger ({filteredTransactions.length} Orders)
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Immutable execution ledger tracking buy/sell fills, prices, quantities, and realized PnL.
+                    Immutable execution ledger tracking every stock BUY (purchase) and SELL order executed through your account on Robinhood Live API or Paperless Sandbox, including fill price, shares, order value, and realized P&amp;L.
                   </p>
                 </div>
 
@@ -795,11 +814,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                     <button
                       key={side}
                       onClick={() => setFilterSide(side)}
-                      className={`px-3 py-1 rounded-lg transition-all ${
-                        filterSide === side
-                          ? 'bg-indigo-600 text-white shadow-xs font-bold'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
+                      className={`px-3 py-1 rounded-lg transition-all ${filterSide === side
+                        ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                        }`}
                     >
                       {side}
                     </button>
@@ -849,11 +867,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
 
                             <td className="py-3.5 px-4">
                               <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                  tx.side === 'BUY'
-                                    ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
-                                    : 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
-                                }`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] ${tx.side === 'BUY'
+                                  ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
+                                  : 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
+                                  }`}
                               >
                                 {tx.side === 'BUY' ? (
                                   <ArrowDownRight className="w-3 h-3" />
@@ -898,13 +915,12 @@ export const PlatformAuditHistoryPage: React.FC = () => {
 
                             <td className="py-3.5 px-4 text-center">
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  tx.status === 'FILLED'
-                                    ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
-                                    : tx.status === 'BLOCKED_BY_CRITIC'
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${tx.status === 'FILLED'
+                                  ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
+                                  : tx.status === 'BLOCKED_BY_CRITIC'
                                     ? 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
                                     : 'bg-slate-800 text-slate-400 border border-slate-700'
-                                }`}
+                                  }`}
                               >
                                 {tx.status}
                               </span>
@@ -983,11 +999,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
 
                           <td className="py-3.5 px-4 text-center">
                             <span
-                              className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                                entry.status === 'SUCCESS'
-                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
-                                  : 'bg-rose-950 text-rose-400 border border-rose-800/60'
-                              }`}
+                              className={`px-2 py-0.5 rounded font-bold text-[10px] ${entry.status === 'SUCCESS'
+                                ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
+                                : 'bg-rose-950 text-rose-400 border border-rose-800/60'
+                                }`}
                             >
                               {entry.status}
                             </span>

@@ -75,7 +75,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
   });
 
   const handleToggleStrategicLoop = async (holding: Holding) => {
-    const currentLoop = localOverrides[holding.symbol]?.runStrategicLoop ?? (holding.runStrategicLoop ?? true);
+    const currentLoop = localOverrides[holding.symbol]?.runStrategicLoop ?? (holding.runStrategicLoop ?? false);
     const newLoop = !currentLoop;
     const currentMode = localOverrides[holding.symbol]?.executionMode ?? (holding.executionMode ?? 'PAPERLESS');
     const targetProfit = localOverrides[holding.symbol]?.targetProfitMarginPct ?? holding.targetProfitMarginPct ?? 5.0;
@@ -129,7 +129,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
   };
 
   const handleToggleExecutionMode = async (holding: Holding, mode: 'PAPERLESS' | 'ACTUAL') => {
-    const currentLoop = localOverrides[holding.symbol]?.runStrategicLoop ?? (holding.runStrategicLoop ?? true);
+    const currentLoop = localOverrides[holding.symbol]?.runStrategicLoop ?? (holding.runStrategicLoop ?? false);
     setUpdatingSymbol(holding.symbol);
     try {
       await StockApiClient.updateStockStrategicLoop(holding.symbol, currentLoop, mode);
@@ -212,7 +212,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
               const isTotalGainPositive = holding.totalGain >= 0;
               const isDayGainPositive = holding.dayGain >= 0;
 
-              const loopActive = localOverrides[holding.symbol]?.runStrategicLoop ?? (holding.runStrategicLoop ?? true);
+              const loopActive = localOverrides[holding.symbol]?.runStrategicLoop ?? (holding.runStrategicLoop ?? false);
               const execMode = localOverrides[holding.symbol]?.executionMode ?? (holding.executionMode ?? 'PAPERLESS');
               const recommendation = localOverrides[holding.symbol]?.recommendation ?? (holding.latestRecommendation || 'HOLD');
               const isSchwab = holding.broker === 'CHARLES_SCHWAB';

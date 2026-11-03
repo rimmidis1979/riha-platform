@@ -873,21 +873,35 @@ export class StockApiClient {
   // ========================================================
 
   public static async getLoginHistory(): Promise<LoginHistoryItem[]> {
+    const currentEmail = this.getCurrentUserEmail()?.toLowerCase().trim();
+    if (!currentEmail) return [];
+
     try {
       const res = await fetch(`${AUTH_SERVICE_URL}/auth/login-history`, {
         headers: this.getHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          return data;
+        if (Array.isArray(data)) {
+          // Strictly filter login records to the authenticated profile
+          return data.filter((item: LoginHistoryItem) => item.email && item.email.toLowerCase().trim() === currentEmail);
         }
       }
     } catch (e) {
       console.warn('Backend login-history fetch failed, reading local session ledger:', e);
     }
     const local = localStorage.getItem('riha_login_audit_trail');
-    return local ? JSON.parse(local) : [];
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item: LoginHistoryItem) => item.email && item.email.toLowerCase().trim() === currentEmail);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    return [];
   }
 
   public static recordLocalLogin(item: LoginHistoryItem): void {

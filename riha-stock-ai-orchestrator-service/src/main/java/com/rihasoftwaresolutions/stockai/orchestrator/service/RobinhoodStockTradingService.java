@@ -873,7 +873,7 @@ public class RobinhoodStockTradingService {
                                 : BigDecimal.ZERO;
 
                         StockMonitorEntity monitor = monitorRepo.findByUserIdAndSymbol(uid, symbol).orElse(null);
-                        boolean loopActive = monitor != null ? monitor.isRunStrategicLoop() : true;
+                        boolean loopActive = monitor != null && monitor.isRunStrategicLoop();
                         ExecutionMode execMode = monitor != null ? monitor.getExecutionMode() : ExecutionMode.ACTUAL;
                         BigDecimal targetProfit = (monitor != null && monitor.getTargetProfitMarginPct() != null)
                                 ? monitor.getTargetProfitMarginPct()
