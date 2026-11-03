@@ -13,19 +13,27 @@ import {
   Bot,
   Sliders,
   Landmark,
+  ExternalLink,
 } from 'lucide-react';
+import { StrategyDiagnosticsModal } from './StrategyDiagnosticsModal';
 
 interface HoldingsTableProps {
   onExploreTrending?: () => void;
   brokerFilter?: 'ALL' | 'ROBINHOOD' | 'CHARLES_SCHWAB';
+  onNavigateToStrategies?: (ticker: string) => void;
 }
 
 export const HoldingsTable: React.FC<HoldingsTableProps> = ({
   onExploreTrending,
   brokerFilter = 'ALL',
+  onNavigateToStrategies,
 }) => {
   const { holdings, openTradeModal } = useTrading();
   const [updatingSymbol, setUpdatingSymbol] = useState<string | null>(null);
+  const [selectedStockForStrategy, setSelectedStockForStrategy] = useState<{
+    symbol: string;
+    companyName: string;
+  } | null>(null);
   const [localOverrides, setLocalOverrides] = useState<
     Record<string, { runStrategicLoop?: boolean; executionMode?: 'PAPERLESS' | 'ACTUAL'; recommendation?: string }>
   >({});
@@ -240,18 +248,27 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                         <span>{loopActive ? 'Loop: ACTIVE' : 'Loop: OFF'}</span>
                       </button>
 
-                      {/* AI Strategy Diagnosis Label */}
-                      <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      {/* AI Strategy Diagnosis Interactive Link / Button */}
+                      <button
+                        onClick={() =>
+                          setSelectedStockForStrategy({
+                            symbol: holding.symbol,
+                            companyName: holding.name || holding.companyName || holding.symbol,
+                          })
+                        }
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 transition-all transform hover:scale-105 border ${
                           recommendation === 'BUY'
-                            ? 'bg-emerald-100 text-emerald-800'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
                             : recommendation === 'SELL'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-amber-100 text-amber-800'
+                            ? 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200'
+                            : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
                         }`}
+                        title="Click to view full AI multi-strategy diagnostics and scores"
                       >
-                        Signal: {recommendation}
-                      </span>
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span>Signal: {recommendation}</span>
+                        <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                      </button>
                     </div>
                   </td>
 
@@ -323,6 +340,19 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* STRATEGY DIAGNOSTICS BREAKDOWN MODAL */}
+      <StrategyDiagnosticsModal
+        isOpen={Boolean(selectedStockForStrategy)}
+        symbol={selectedStockForStrategy?.symbol || null}
+        companyName={selectedStockForStrategy?.companyName}
+        onClose={() => setSelectedStockForStrategy(null)}
+        onNavigateToStrategies={onNavigateToStrategies}
+        onOpenTradeModal={(stock) => {
+          setSelectedStockForStrategy(null);
+          openTradeModal(stock);
+        }}
+      />
     </div>
   );
 };

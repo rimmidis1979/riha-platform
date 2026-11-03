@@ -71,6 +71,16 @@ export const StrategyAnalysisPage: React.FC = () => {
     }
   };
 
+  // Check for pre-selected ticker from Account or Holdings navigation
+  useEffect(() => {
+    const savedTicker = sessionStorage.getItem('riha_selected_strategy_ticker');
+    if (savedTicker) {
+      sessionStorage.removeItem('riha_selected_strategy_ticker');
+      setInputTicker(savedTicker);
+      runEvaluation(savedTicker);
+    }
+  }, []);
+
   // Continuous Backend Poller Effect for Real-Time Market Ticks
   useEffect(() => {
     if (!isLivePolling || !activeTicker || isLoading) {

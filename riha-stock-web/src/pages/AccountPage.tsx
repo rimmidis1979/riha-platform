@@ -27,9 +27,10 @@ import { Holding } from '../types/trading';
 
 interface AccountPageProps {
   onExploreTrending: () => void;
+  onNavigateToStrategies?: (ticker: string) => void;
 }
 
-export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending }) => {
+export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending, onNavigateToStrategies }) => {
   const { user, updateCashBalance } = useAuth();
   const { holdings, setHoldings, openTradeModal, trendingStocks } = useTrading();
 
@@ -369,7 +370,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending }) =
       {/* TAB 2: ROBINHOOD STOCKS (EQUITIES) VIEW */}
       {selectedBrokerTab === 'ROBINHOOD_STOCKS' && (
         <div className="space-y-6">
-          <RobinhoodStocksTab />
+          <RobinhoodStocksTab onNavigateToStrategies={onNavigateToStrategies} />
         </div>
       )}
 
@@ -543,6 +544,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onExploreTrending }) =
           {activeSubTab === 'holdings' ? (
             <HoldingsTable
               onExploreTrending={onExploreTrending}
+              onNavigateToStrategies={onNavigateToStrategies}
               brokerFilter={
                 selectedBrokerTab === 'ROBINHOOD_CRYPTO'
                   ? 'ROBINHOOD'
