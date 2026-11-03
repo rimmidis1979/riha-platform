@@ -193,14 +193,12 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
               <button
                 type="button"
                 onClick={() => setRunLoop(!runLoop)}
-                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out cursor-pointer ${
-                  runLoop ? 'bg-emerald-600' : 'bg-slate-700'
-                }`}
+                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out cursor-pointer ${runLoop ? 'bg-emerald-600' : 'bg-slate-700'
+                  }`}
               >
                 <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
-                    runLoop ? 'translate-x-6' : 'translate-x-0'
-                  }`}
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${runLoop ? 'translate-x-6' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -208,9 +206,8 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
             <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] font-mono">
               <span className="text-slate-400 font-sans">Status:</span>
               <span
-                className={`font-bold px-2 py-0.5 rounded-full border ${
-                  runLoop ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/60' : 'bg-slate-800 text-slate-400 border-slate-700'
-                }`}
+                className={`font-bold px-2 py-0.5 rounded-full border ${runLoop ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/60' : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
               >
                 {runLoop ? '⚡ ACTIVE (Background Radar On)' : '⏸️ OFF (Manual Scan Only)'}
               </span>
@@ -246,11 +243,10 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
                   type="button"
                   key={pct}
                   onClick={() => setProfitMargin(pct)}
-                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${
-                    profitMargin === pct
+                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${profitMargin === pct
                       ? 'bg-emerald-600 text-white shadow-xs border-emerald-500'
                       : 'bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-400 border-emerald-800/60'
-                  }`}
+                    }`}
                 >
                   +{pct}%
                 </button>
@@ -295,11 +291,10 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
                   type="button"
                   key={pct}
                   onClick={() => setStopLossMargin(pct)}
-                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${
-                    stopLossMargin === pct
+                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${stopLossMargin === pct
                       ? 'bg-rose-600 text-white shadow-xs border-rose-500'
                       : 'bg-rose-950/50 hover:bg-rose-900/60 text-rose-400 border-rose-800/60'
-                  }`}
+                    }`}
                 >
                   -{pct}%
                 </button>
@@ -382,22 +377,20 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
               <button
                 type="button"
                 onClick={() => setExecMode('PAPERLESS')}
-                className={`py-2 text-xs font-bold rounded-xl border transition-all ${
-                  execMode === 'PAPERLESS'
+                className={`py-2 text-xs font-bold rounded-xl border transition-all ${execMode === 'PAPERLESS'
                     ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500 shadow-xs'
                     : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
-                }`}
+                  }`}
               >
                 Paperless Sandbox
               </button>
               <button
                 type="button"
                 onClick={() => setExecMode('ACTUAL')}
-                className={`py-2 text-xs font-bold rounded-xl border transition-all ${
-                  execMode === 'ACTUAL'
+                className={`py-2 text-xs font-bold rounded-xl border transition-all ${execMode === 'ACTUAL'
                     ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500 shadow-xs'
                     : 'bg-[#161d2d] text-slate-400 border-slate-700 hover:bg-slate-800'
-                }`}
+                  }`}
               >
                 Robinhood Live API
               </button>
@@ -437,4 +430,5 @@ export const StrategicLoopConfigModal: React.FC<StrategicLoopConfigModalProps> =
     </div>
   );
 };
+
 
