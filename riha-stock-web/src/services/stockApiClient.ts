@@ -1258,13 +1258,31 @@ export class StockApiClient {
     return null;
   }
 
+  public static getCurrentUserEmail(): string | null {
+    try {
+      const sessionStr = localStorage.getItem('riha_user_session');
+      if (sessionStr) {
+        const parsed = JSON.parse(sessionStr);
+        if (parsed?.email) return parsed.email.trim();
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
   private static getHeaders(): HeadersInit {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     const token = this.getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+    const email = this.getCurrentUserEmail();
+    if (email) {
+      headers['X-User-Email'] = email;
+      headers['X-User-Id'] = email;
     }
     return headers;
   }

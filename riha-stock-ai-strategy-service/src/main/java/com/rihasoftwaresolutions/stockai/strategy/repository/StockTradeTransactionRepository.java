@@ -10,6 +10,8 @@ import java.util.UUID;
 @Repository
 public interface StockTradeTransactionRepository extends JpaRepository<StockTradeTransactionEntity, UUID> {
     List<StockTradeTransactionEntity> findTop150ByOrderByExecutedAtDesc();
+    List<StockTradeTransactionEntity> findTop150ByUserEmailOrderByExecutedAtDesc(String userEmail);
+    List<StockTradeTransactionEntity> findByUserEmailOrderByExecutedAtDesc(String userEmail);
     List<StockTradeTransactionEntity> findByTickerOrderByExecutedAtDesc(String ticker);
 }
 

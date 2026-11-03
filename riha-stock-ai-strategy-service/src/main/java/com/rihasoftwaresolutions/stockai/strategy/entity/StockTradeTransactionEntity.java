@@ -71,6 +71,9 @@ public class StockTradeTransactionEntity {
     @Column(name = "raw_event_trace_json", columnDefinition = "TEXT")
     private String rawEventTraceJson;
 
+    @Column(name = "user_email", length = 160)
+    private String userEmail;
+
     @Column(name = "executed_at", nullable = false)
     private Instant executedAt;
 
@@ -227,6 +230,14 @@ public class StockTradeTransactionEntity {
 
     public void setRawEventTraceJson(String rawEventTraceJson) {
         this.rawEventTraceJson = rawEventTraceJson;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
     }
 
     public Instant getExecutedAt() {

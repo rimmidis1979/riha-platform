@@ -16,6 +16,8 @@ import {
   Landmark,
   ExternalLink,
   BarChart2,
+  RefreshCw,
+  Info,
 } from 'lucide-react';
 import { StrategyDiagnosticsModal } from './StrategyDiagnosticsModal';
 import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from './StrategicLoopConfigModal';
@@ -76,10 +78,33 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
     const currentLoop = localOverrides[holding.symbol]?.runStrategicLoop ?? (holding.runStrategicLoop ?? true);
     const newLoop = !currentLoop;
     const currentMode = localOverrides[holding.symbol]?.executionMode ?? (holding.executionMode ?? 'PAPERLESS');
+    const targetProfit = localOverrides[holding.symbol]?.targetProfitMarginPct ?? holding.targetProfitMarginPct ?? 5.0;
+    const stopLoss = localOverrides[holding.symbol]?.stopLossMarginPct ?? holding.stopLossMarginPct ?? 3.0;
+    const autoBuy = localOverrides[holding.symbol]?.autoBuyEnabled ?? holding.autoBuyEnabled ?? false;
+    const autoSell = localOverrides[holding.symbol]?.autoSellEnabled ?? holding.autoSellEnabled ?? false;
+    const maxQty = localOverrides[holding.symbol]?.maxQuantity ?? holding.maxQuantity ?? 1;
+
+    // Optimistic UI state update immediately
+    setLocalOverrides((prev) => ({
+      ...prev,
+      [holding.symbol]: {
+        ...prev[holding.symbol],
+        runStrategicLoop: newLoop,
+      },
+    }));
 
     setUpdatingSymbol(holding.symbol);
     try {
-      const updated = await StockApiClient.updateStockStrategicLoop(holding.symbol, newLoop, currentMode);
+      const updated = await StockApiClient.updateStockStrategicLoop(
+        holding.symbol,
+        newLoop,
+        currentMode,
+        targetProfit,
+        stopLoss,
+        autoBuy,
+        autoSell,
+        maxQty
+      );
       setLocalOverrides((prev) => ({
         ...prev,
         [holding.symbol]: {
@@ -88,8 +113,16 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
           recommendation: updated?.latestRecommendation || prev[holding.symbol]?.recommendation || 'HOLD',
         },
       }));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to toggle strategic loop:', err);
+      // Revert optimistic update on failure
+      setLocalOverrides((prev) => ({
+        ...prev,
+        [holding.symbol]: {
+          ...prev[holding.symbol],
+          runStrategicLoop: currentLoop,
+        },
+      }));
     } finally {
       setUpdatingSymbol(null);
     }
@@ -321,30 +354,38 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                   <td className="py-4 px-4 text-center">
                     <div className="flex flex-col items-center gap-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                        {/* Auto Strategy Loop Button */}
+                        {/* Instant 1-Click Auto Strategy Loop Toggle */}
                         <button
-                          onClick={() =>
-                            setSelectedStockForExecution({
-                              symbol: holding.symbol,
-                              companyName: holding.name || holding.companyName || holding.symbol,
-                              currentPrice: holding.currentPrice,
-                              costBasis: holding.avgCost,
-                              ownedShares: holding.shares,
-                              initialMode: 'AUTO_LOOP',
-                            })
-                          }
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all border ${loopActive
-                            ? 'bg-emerald-950/70 text-emerald-400 border-emerald-800/80 shadow-xs'
-                            : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-slate-700'
-                            }`}
-                          title="Open Key Stock Info & Configure Continuous Auto Strategy Loop"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleStrategicLoop(holding);
+                          }}
+                          disabled={updatingSymbol === holding.symbol}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${
+                            loopActive
+                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-xs shadow-emerald-500/20 hover:bg-emerald-900/60'
+                              : 'bg-slate-800/90 text-slate-400 border-slate-700 hover:bg-slate-700/80 hover:text-slate-200'
+                          }`}
+                          title={loopActive ? 'Click to instantly PAUSE Auto Strategy Loop' : 'Click to instantly ACTIVATE Auto Strategy Loop'}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full ${loopActive ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
-                          <span>Auto Loop {loopActive ? 'ON' : 'OFF'}</span>
+                          {updatingSymbol === holding.symbol ? (
+                            <RefreshCw className="w-2.5 h-2.5 animate-spin text-slate-300" />
+                          ) : (
+                            <span className={`w-1.5 h-1.5 rounded-full ${loopActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                          )}
+                          <span>Loop {loopActive ? 'ON' : 'OFF'}</span>
+                          {/* Modern Sliding Toggle Visual */}
+                          <div className={`w-5 h-3 rounded-full p-0.5 transition-colors flex items-center ${
+                            loopActive ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                          }`}>
+                            <span className="w-2 h-2 rounded-full bg-white shadow-xs" />
+                          </div>
                         </button>
 
                         {/* 1-Time Apply Strategy Button */}
                         <button
+                          type="button"
                           onClick={() =>
                             setSelectedStockForExecution({
                               symbol: holding.symbol,
@@ -359,7 +400,26 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({
                           title="Open Key Stock Info & Execute 1-Time Strategy Order"
                         >
                           <Zap className="w-2.5 h-2.5 text-amber-400" />
-                          <span>1-Time Strategy</span>
+                          <span>1-Time</span>
+                        </button>
+
+                        {/* Stock Key Info Trigger */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedStockForExecution({
+                              symbol: holding.symbol,
+                              companyName: holding.name || holding.companyName || holding.symbol,
+                              currentPrice: holding.currentPrice,
+                              costBasis: holding.avgCost,
+                              ownedShares: holding.shares,
+                              initialMode: 'ONE_TIME',
+                            })
+                          }
+                          className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                          title="View Key Stock Metrics, SEC Filings & Live News"
+                        >
+                          <Info className="w-3.5 h-3.5" />
                         </button>
                       </div>
 

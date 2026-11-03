@@ -10,6 +10,7 @@ import {
 } from '../types/trading';
 import { LoginHistoryItem } from '../types/auth';
 import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from '../components/trading/StrategicLoopConfigModal';
+import { StockDetailExecutionModal } from '../components/trading/StockDetailExecutionModal';
 import {
   ShieldCheck,
   History,
@@ -33,6 +34,8 @@ import {
   PauseCircle,
   PlayCircle,
   Percent,
+  Zap,
+  Info,
 } from 'lucide-react';
 
 export const PlatformAuditHistoryPage: React.FC = () => {
@@ -54,6 +57,44 @@ export const PlatformAuditHistoryPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSide, setFilterSide] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
   const [configTarget, setConfigTarget] = useState<StrategicLoopConfigTarget | null>(null);
+  const [updatingLoopTicker, setUpdatingLoopTicker] = useState<string | null>(null);
+  const [selectedStockForExecution, setSelectedStockForExecution] = useState<{
+    symbol: string;
+    companyName?: string;
+    currentPrice: number;
+    costBasis?: number;
+    ownedShares?: number;
+    initialMode?: 'AUTO_LOOP' | 'ONE_TIME';
+  } | null>(null);
+
+  const handleToggleAutoLoop = async (loop: AutoStrategyItem) => {
+    const newMonitoring = !loop.activeMonitoring;
+    // Optimistic UI state update immediately
+    setAutoLoops((prev) =>
+      prev.map((l) => (l.ticker === loop.ticker ? { ...l, activeMonitoring: newMonitoring } : l))
+    );
+    setUpdatingLoopTicker(loop.ticker);
+    try {
+      await StockApiClient.updateStockStrategicLoop(
+        loop.ticker,
+        newMonitoring,
+        loop.executionMode || 'ACTUAL',
+        loop.targetProfitMarginPct ?? 5.0,
+        loop.stopLossMarginPct ?? 3.0,
+        loop.autoBuyEnabled ?? false,
+        loop.autoSellEnabled ?? false,
+        1
+      );
+    } catch (err: any) {
+      console.error('Failed to toggle auto loop:', err);
+      // Revert optimistic update
+      setAutoLoops((prev) =>
+        prev.map((l) => (l.ticker === loop.ticker ? { ...l, activeMonitoring: loop.activeMonitoring } : l))
+      );
+    } finally {
+      setUpdatingLoopTicker(null);
+    }
+  };
 
   const loadData = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -237,11 +278,15 @@ export const PlatformAuditHistoryPage: React.FC = () => {
       {/* PAGE HEADER */}
       <div className="bg-[#111827] border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-950/80 text-indigo-400 border border-indigo-800/80 uppercase">
               Audit &amp; Intelligence Ledger
             </span>
-            <span className="text-xs text-slate-400 font-mono">Zero-Mock Institutional Feed</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 uppercase flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-emerald-400" />
+              Isolated Profile: {user?.email || 'Active User'}
+            </span>
+            <span className="text-xs text-slate-400 font-mono">Zero-Mock Multi-Tenant Guard</span>
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
             <Activity className="w-6 h-6 text-indigo-400" />
@@ -497,10 +542,30 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                             </td>
 
                             <td className="py-3.5 px-4">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-950/70 text-emerald-400 border border-emerald-800/60">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                                <span>LOOP ACTIVE</span>
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleAutoLoop(loop)}
+                                disabled={updatingLoopTicker === loop.ticker}
+                                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${
+                                  loop.activeMonitoring
+                                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-xs shadow-emerald-500/20 hover:bg-emerald-900/60'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'
+                                }`}
+                                title={loop.activeMonitoring ? 'Click to instantly PAUSE Auto Strategy Loop' : 'Click to instantly ACTIVATE Auto Strategy Loop'}
+                              >
+                                {updatingLoopTicker === loop.ticker ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin text-slate-300" />
+                                ) : (
+                                  <span className={`w-1.5 h-1.5 rounded-full ${loop.activeMonitoring ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                                )}
+                                <span>{loop.activeMonitoring ? 'ACTIVE (ON)' : 'PAUSED (OFF)'}</span>
+                                {/* Sliding Toggle Switch Visual */}
+                                <div className={`w-5 h-3 rounded-full p-0.5 transition-colors flex items-center ${
+                                  loop.activeMonitoring ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                                }`}>
+                                  <span className="w-2 h-2 rounded-full bg-white shadow-xs" />
+                                </div>
+                              </button>
                             </td>
 
                             <td className="py-3.5 px-4 text-right text-slate-300">
@@ -553,12 +618,31 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                             <td className="py-3.5 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedStockForExecution({
+                                      symbol: loop.ticker,
+                                      companyName: loop.ticker,
+                                      currentPrice: livePrice,
+                                      costBasis: costBasis,
+                                      ownedShares: loop.ownedShares,
+                                      initialMode: 'ONE_TIME',
+                                    })
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 font-sans font-bold text-[11px] transition-colors flex items-center gap-1"
+                                  title="View live key metrics, news, filings and 1-time strategy execution"
+                                >
+                                  <Zap className="w-3 h-3 text-amber-400" />
+                                  <span>Details &amp; 1-Time</span>
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() =>
                                     setConfigTarget({
                                       symbol: loop.ticker,
                                       currentPrice: livePrice,
                                       avgCost: costBasis,
-                                      runStrategicLoop: true,
+                                      runStrategicLoop: loop.activeMonitoring,
                                       executionMode: loop.executionMode || 'ACTUAL',
                                       targetProfitMarginPct: profitPct,
                                       stopLossMarginPct: stopLossPct,
@@ -567,9 +651,10 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                                       maxQuantity: 1,
                                     })
                                   }
-                                  className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 font-sans font-bold text-[11px] transition-colors"
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                                  title="Threshold Options (Optional)"
                                 >
-                                  Configure
+                                  <SlidersHorizontal className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
@@ -932,6 +1017,23 @@ export const PlatformAuditHistoryPage: React.FC = () => {
           onClose={() => setConfigTarget(null)}
           onSaved={() => {
             setConfigTarget(null);
+            loadData(true);
+          }}
+        />
+      )}
+
+      {/* STOCK KEY INFO & 1-TIME EXECUTION MODAL */}
+      {selectedStockForExecution && (
+        <StockDetailExecutionModal
+          isOpen={!!selectedStockForExecution}
+          onClose={() => setSelectedStockForExecution(null)}
+          symbol={selectedStockForExecution.symbol}
+          companyName={selectedStockForExecution.companyName}
+          currentPrice={selectedStockForExecution.currentPrice}
+          costBasis={selectedStockForExecution.costBasis}
+          ownedShares={selectedStockForExecution.ownedShares}
+          initialMode={selectedStockForExecution.initialMode || 'ONE_TIME'}
+          onExecutionComplete={() => {
             loadData(true);
           }}
         />

@@ -395,6 +395,9 @@ public class StockAgenticWorkflowCoordinator {
         tx.setWorkflowInstanceId(workflowId);
         tx.setTicker(ticker);
         tx.setSide(side);
+        String userEmail = request.get("userEmail") != null ? String.valueOf(request.get("userEmail")) : null;
+        if (userEmail == null && request.get("email") != null) userEmail = String.valueOf(request.get("email"));
+        tx.setUserEmail(userEmail);
         tx.setExecutionMode(String.valueOf(request.getOrDefault("executionMode", "MANUAL_USER_TRIGGERED")));
         tx.setStrategyName("VWAP Reclaim & Relative Volume Breakout");
         tx.setPromptVersion("riha-stock-ai-vwap-breakout-strategy@v1.0.0");
@@ -1652,12 +1655,21 @@ public class StockAgenticWorkflowCoordinator {
         return candles;
     }
 
-    public List<StockTradeTransactionEntity> getAllTransactions() {
+    public List<StockTradeTransactionEntity> getAllTransactions(String userEmail) {
+        if (userEmail != null && !userEmail.isBlank()) {
+            return transactionRepository.findTop150ByUserEmailOrderByExecutedAtDesc(userEmail.trim());
+        }
         return transactionRepository.findTop150ByOrderByExecutedAtDesc();
     }
 
-    public Map<String, Object> getPerformanceSummary() {
-        List<StockTradeTransactionEntity> txs = transactionRepository.findTop150ByOrderByExecutedAtDesc();
+    public List<StockTradeTransactionEntity> getAllTransactions() {
+        return getAllTransactions(null);
+    }
+
+    public Map<String, Object> getPerformanceSummary(String userEmail) {
+        List<StockTradeTransactionEntity> txs = (userEmail != null && !userEmail.isBlank())
+                ? transactionRepository.findByUserEmailOrderByExecutedAtDesc(userEmail.trim())
+                : transactionRepository.findTop150ByOrderByExecutedAtDesc();
         List<Map<String, Object>> owned = getOwnedPositionsList();
 
         BigDecimal realizedPnlUsd = txs.stream()
@@ -1695,6 +1707,7 @@ public class StockAgenticWorkflowCoordinator {
         BigDecimal totalVolumeTradedUsd = totalBuyVolumeUsd.add(totalSellVolumeUsd).setScale(2, RoundingMode.HALF_UP);
 
         Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("userEmail", userEmail != null ? userEmail : "GLOBAL");
         summary.put("realizedPnlUsd", realizedPnlUsd);
         summary.put("unrealizedPnlUsd", unrealizedPnlUsd);
         summary.put("netPnlUsd", netPnlUsd);
@@ -1712,7 +1725,11 @@ public class StockAgenticWorkflowCoordinator {
         return summary;
     }
 
-    public List<Map<String, Object>> getActiveAutoLoops() {
+    public Map<String, Object> getPerformanceSummary() {
+        return getPerformanceSummary(null);
+    }
+
+    public List<Map<String, Object>> getActiveAutoLoops(String userEmail) {
         List<TrackedWatchlistStockEntity> trackedList = watchlistRepository.findAll();
         List<Map<String, Object>> activeLoops = new ArrayList<>();
         Map<String, Integer> owned = getAllOwnedQuantities();
@@ -1740,14 +1757,22 @@ public class StockAgenticWorkflowCoordinator {
         return activeLoops;
     }
 
-    public Map<String, Object> getStrategiesHistory() {
+    public List<Map<String, Object>> getActiveAutoLoops() {
+        return getActiveAutoLoops(null);
+    }
+
+    public Map<String, Object> getStrategiesHistory(String userEmail) {
         Map<String, Object> masterAudit = scannerLoop.getMasterAuditSummary("ALL");
-        List<StockTradeTransactionEntity> txs = transactionRepository.findTop150ByOrderByExecutedAtDesc();
+        List<StockTradeTransactionEntity> txs = getAllTransactions(userEmail);
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("masterAudit", masterAudit);
         res.put("transactions", txs);
         res.put("generatedAt", Instant.now().toString());
         return res;
+    }
+
+    public Map<String, Object> getStrategiesHistory() {
+        return getStrategiesHistory(null);
     }
 
     private String getCompanyNameForTicker(String ticker) {
