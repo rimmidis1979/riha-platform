@@ -412,3 +412,4 @@ export const StrategyDiagnosticsModal: React.FC<StrategyDiagnosticsModalProps> =
     </div>
   );
 };
+

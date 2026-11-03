@@ -42,6 +42,9 @@ public class RobinhoodStockTradingService {
     private final TransactionRecordRepository transactionRepo;
     private final StrategyEvaluationEngine strategyEngine;
 
+    private final Map<String, String> instrumentUrlCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile String cachedAccountUrl = null;
+
     @Value("${riha.stockai.robinhood.api-base-url:https://api.robinhood.com}")
     private String apiBaseUrl;
 
@@ -739,7 +742,6 @@ public class RobinhoodStockTradingService {
                             case "filled" -> OrderStatus.FILLED;
                             case "cancelled" -> OrderStatus.CANCELLED;
                             case "rejected" -> OrderStatus.REJECTED;
-                            case "queued", "working" -> OrderStatus.WORKING;
                             default -> OrderStatus.PENDING;
                         };
 
@@ -927,6 +929,176 @@ public class RobinhoodStockTradingService {
         return new RobinhoodStockQuote(sym, getCompanyNameFallback(sym), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, Instant.now());
     }
 
+    public record RobinhoodLiveOrderSubmissionResult(
+            String orderId,
+            OrderStatus status,
+            String state,
+            String message
+    ) {}
+
+    /**
+     * Resolves the Robinhood instrument URL for a given stock ticker.
+     */
+    public String resolveInstrumentUrl(String token, String symbol) {
+        String cleanSym = symbol.trim().toUpperCase(Locale.ROOT);
+        String cached = instrumentUrlCache.get(cleanSym);
+        if (cached != null && !cached.isBlank()) {
+            return cached;
+        }
+        try {
+            String json = restClient.get()
+                    .uri(apiBaseUrl + "/instruments/?symbol=" + cleanSym)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+            if (json != null && !json.isBlank()) {
+                JsonNode root = objectMapper.readTree(json);
+                JsonNode results = root.path("results");
+                if (results.isArray() && !results.isEmpty()) {
+                    String url = results.get(0).path("url").asText(null);
+                    if (url != null && !url.isBlank()) {
+                        instrumentUrlCache.put(cleanSym, url);
+                        return url;
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.error("Failed to resolve Robinhood instrument URL for {}: {}", cleanSym, ex.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Resolves the primary Robinhood account URL for order placement.
+     */
+    public String resolveAccountUrl(String token, String accountNumber) {
+        if (cachedAccountUrl != null && !cachedAccountUrl.isBlank()) {
+            return cachedAccountUrl;
+        }
+        try {
+            String json = restClient.get()
+                    .uri(apiBaseUrl + "/accounts/")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+            if (json != null && !json.isBlank()) {
+                JsonNode root = objectMapper.readTree(json);
+                JsonNode results = root.path("results");
+                if (results.isArray() && !results.isEmpty()) {
+                    String url = results.get(0).path("url").asText(null);
+                    if (url != null && !url.isBlank()) {
+                        cachedAccountUrl = url;
+                        return url;
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to query /accounts/ list: {}", ex.getMessage());
+        }
+        if (accountNumber != null && !accountNumber.isBlank()) {
+            String url = apiBaseUrl + "/accounts/" + accountNumber.trim() + "/";
+            cachedAccountUrl = url;
+            return url;
+        }
+        return null;
+    }
+
+    private String extractRobinhoodErrorMessage(String errorBody) {
+        if (errorBody == null || errorBody.isBlank()) return "Unknown broker error";
+        try {
+            JsonNode node = objectMapper.readTree(errorBody);
+            if (node.has("detail")) return node.get("detail").asText();
+            if (node.has("non_field_errors") && node.get("non_field_errors").isArray()) {
+                return node.get("non_field_errors").get(0).asText();
+            }
+            Iterator<String> fieldNames = node.fieldNames();
+            if (fieldNames.hasNext()) {
+                String f = fieldNames.next();
+                JsonNode val = node.get(f);
+                if (val.isArray() && !val.isEmpty()) {
+                    return f + ": " + val.get(0).asText();
+                }
+                return f + ": " + val.asText();
+            }
+        } catch (Exception ignored) {}
+        return errorBody;
+    }
+
+    /**
+     * Submits an actual equity market/limit order to Robinhood REST API.
+     * ZERO MOCK DATA: Never fabricates order confirmation. Propagates broker response/errors.
+     */
+    private RobinhoodLiveOrderSubmissionResult submitRobinhoodEquitiesOrder(
+            String token, String accountNumber, String symbol, String side, BigDecimal qty, BigDecimal price, OrderType type) {
+        String cleanSym = symbol.trim().toUpperCase(Locale.ROOT);
+        String instrumentUrl = resolveInstrumentUrl(token, cleanSym);
+        if (instrumentUrl == null || instrumentUrl.isBlank()) {
+            throw new IllegalStateException("Robinhood instrument URL could not be resolved for ticker " + cleanSym);
+        }
+
+        String accountUrl = resolveAccountUrl(token, accountNumber);
+        if (accountUrl == null || accountUrl.isBlank()) {
+            throw new IllegalStateException("Robinhood account URL could not be resolved. Please verify broker connection.");
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("account", accountUrl);
+        body.put("instrument", instrumentUrl);
+        body.put("symbol", cleanSym);
+        body.put("side", side.toLowerCase(Locale.ROOT));
+        body.put("quantity", qty.stripTrailingZeros().toPlainString());
+        body.put("type", type == OrderType.LIMIT ? "limit" : "market");
+        body.put("time_in_force", "gtc");
+        body.put("trigger", "immediate");
+        if (type == OrderType.LIMIT && price != null && price.compareTo(BigDecimal.ZERO) > 0) {
+            body.put("price", price.setScale(2, RoundingMode.HALF_UP).toPlainString());
+        }
+
+        try {
+            String resp = restClient.post()
+                    .uri(apiBaseUrl + "/orders/")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.USER_AGENT, ROBINHOOD_USER_AGENT)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+
+            if (resp != null && !resp.isBlank()) {
+                JsonNode resJson = objectMapper.readTree(resp);
+                String id = resJson.path("id").asText(null);
+                if (id == null || id.isBlank()) {
+                    throw new IllegalStateException("Robinhood order response missing valid order ID");
+                }
+                String state = resJson.path("state").asText("queued").toLowerCase(Locale.ROOT);
+                OrderStatus mappedStatus = switch (state) {
+                    case "filled" -> OrderStatus.FILLED;
+                    case "cancelled" -> OrderStatus.CANCELLED;
+                    case "rejected" -> OrderStatus.REJECTED;
+                    default -> OrderStatus.PENDING;
+                };
+
+                String msg = "Robinhood Live Order placed with ID " + id + " (Status: " + state.toUpperCase(Locale.ROOT) + ").";
+                log.info("Live Robinhood stock order successfully placed: ID={}, Symbol={}, Side={}, State={}, Status={}",
+                        id, cleanSym, side, state, mappedStatus);
+                return new RobinhoodLiveOrderSubmissionResult(id, mappedStatus, state, msg);
+            }
+            throw new IllegalStateException("Empty response from Robinhood orders API");
+        } catch (RestClientResponseException rcre) {
+            String errBody = rcre.getResponseBodyAsString();
+            String extracted = extractRobinhoodErrorMessage(errBody);
+            log.error("Robinhood orders API rejected order ({}) for {}: {}", rcre.getStatusCode(), cleanSym, errBody);
+            throw new IllegalStateException("Robinhood rejected order (" + rcre.getStatusCode() + "): " + extracted);
+        } catch (Exception ex) {
+            log.error("Robinhood order submission exception for {}: {}", cleanSym, ex.getMessage(), ex);
+            throw new IllegalStateException("Failed to place live Robinhood order: " + ex.getMessage());
+        }
+    }
+
     /**
      * Executes a buy order for a Robinhood stock (Actual or Paperless).
      */
@@ -950,18 +1122,22 @@ public class RobinhoodStockTradingService {
         BigDecimal totalValue = execPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
 
         String orderId;
-        OrderStatus status = OrderStatus.FILLED;
+        OrderStatus status;
+        String notes;
 
         if (mode == ExecutionMode.ACTUAL) {
             String token = resolveRobinhoodToken(uid);
-            if (token != null && !token.isBlank() && !token.equalsIgnoreCase("null")) {
-                orderId = submitRobinhoodEquitiesOrder(token, sym, "buy", quantity, execPrice, orderType);
-            } else {
-                orderId = "RH-STK-ACTUAL-" + UUID.randomUUID().toString().substring(0, 8);
-                log.info("Robinhood live actual stock order submitted with tracking receipt: {}", orderId);
+            if (token == null || token.isBlank() || token.equalsIgnoreCase("null")) {
+                throw new IllegalStateException("Cannot execute in ACTUAL mode: Robinhood API token is not configured or authenticated.");
             }
+            var result = submitRobinhoodEquitiesOrder(token, settings.getRobinhoodAccountNumber(), sym, "buy", quantity, execPrice, orderType);
+            orderId = result.orderId();
+            status = result.status();
+            notes = result.message();
         } else {
             orderId = "RH-PAPER-" + UUID.randomUUID().toString().substring(0, 8);
+            status = OrderStatus.FILLED;
+            notes = "Robinhood Paperless Order Executed Successfully";
         }
 
         // 1. Record transaction in database
@@ -986,8 +1162,8 @@ public class RobinhoodStockTradingService {
         tx.setPnlPercent(BigDecimal.ZERO);
         tx.setRecommendationLabel("BUY");
         tx.setStrategyName("Robinhood Stock Trading Engine");
-        tx.setStrategyDiagnosis("Stock purchase executed in " + mode + " mode");
-        tx.setNotes("Robinhood Equities Buy Execution");
+        tx.setStrategyDiagnosis("Stock purchase executed in " + mode + " mode (" + status + ")");
+        tx.setNotes(notes);
         tx.setExecutedAt(Instant.now());
         transactionRepo.save(tx);
 
@@ -1005,8 +1181,8 @@ public class RobinhoodStockTradingService {
         monitor.setLastEvaluatedAt(Instant.now());
         monitorRepo.save(monitor);
 
-        log.info("Executed Robinhood Stock BUY for {} (Qty={}, Price=${}, Mode={}, OrderId={})",
-                sym, quantity, execPrice, mode, orderId);
+        log.info("Executed Robinhood Stock BUY for {} (Qty={}, Price=${}, Mode={}, OrderId={}, Status={})",
+                sym, quantity, execPrice, mode, orderId, status);
 
         return new RobinhoodStockOrderResult(
                 orderId,
@@ -1019,7 +1195,7 @@ public class RobinhoodStockTradingService {
                 status,
                 mode,
                 Instant.now(),
-                "Robinhood Stock Purchase Executed Successfully"
+                notes
         );
     }
 
@@ -1046,15 +1222,22 @@ public class RobinhoodStockTradingService {
         BigDecimal totalValue = execPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
 
         String orderId;
+        OrderStatus status;
+        String notes;
+
         if (mode == ExecutionMode.ACTUAL) {
             String token = resolveRobinhoodToken(uid);
-            if (token != null && !token.isBlank() && !token.equalsIgnoreCase("null")) {
-                orderId = submitRobinhoodEquitiesOrder(token, sym, "sell", quantity, execPrice, orderType);
-            } else {
-                orderId = "RH-STK-ACTUAL-" + UUID.randomUUID().toString().substring(0, 8);
+            if (token == null || token.isBlank() || token.equalsIgnoreCase("null")) {
+                throw new IllegalStateException("Cannot execute in ACTUAL mode: Robinhood API token is not configured or authenticated.");
             }
+            var result = submitRobinhoodEquitiesOrder(token, settings.getRobinhoodAccountNumber(), sym, "sell", quantity, execPrice, orderType);
+            orderId = result.orderId();
+            status = result.status();
+            notes = result.message();
         } else {
             orderId = "RH-PAPER-" + UUID.randomUUID().toString().substring(0, 8);
+            status = OrderStatus.FILLED;
+            notes = "Robinhood Paperless Sell Order Executed Successfully";
         }
 
         TransactionRecordEntity tx = new TransactionRecordEntity();
@@ -1064,7 +1247,7 @@ public class RobinhoodStockTradingService {
         tx.setCompanyName(getCompanyNameFallback(sym));
         tx.setSide(OrderSide.SELL);
         tx.setOrderType(orderType != null ? orderType : OrderType.MARKET);
-        tx.setStatus(OrderStatus.FILLED);
+        tx.setStatus(status);
         tx.setBroker(BrokerType.ROBINHOOD);
         tx.setOrigin(PurchaseOrigin.RIHA_APP);
         tx.setExecutionMode(mode);
@@ -1075,33 +1258,37 @@ public class RobinhoodStockTradingService {
         tx.setCurrentMarketPrice(execPrice);
         tx.setRecommendationLabel("SELL");
         tx.setStrategyName("Robinhood Stock Trading Engine");
-        tx.setStrategyDiagnosis("Stock liquidation executed in " + mode + " mode");
-        tx.setNotes("Robinhood Equities Sell Execution");
+        tx.setStrategyDiagnosis("Stock liquidation executed in " + mode + " mode (" + status + ")");
+        tx.setNotes(notes);
         tx.setExecutedAt(Instant.now());
-        tx.setClosedAt(Instant.now());
+        if (status == OrderStatus.FILLED) {
+            tx.setClosedAt(Instant.now());
+        }
 
-        // Calculate realized PnL
-        List<TransactionRecordEntity> buys = transactionRepo.findByUserIdAndSymbolOrderByExecutedAtDesc(uid, sym);
-        for (var b : buys) {
-            if (b.getSide() == OrderSide.BUY && b.getStatus() == OrderStatus.FILLED && b.getClosedAt() == null) {
-                BigDecimal buyPrice = b.getExecutionPrice();
-                BigDecimal profitPerShare = execPrice.subtract(buyPrice);
-                BigDecimal totalRealized = profitPerShare.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
-                tx.setRealizedPnlUsd(totalRealized);
-                if (buyPrice.compareTo(BigDecimal.ZERO) > 0) {
-                    BigDecimal pnlPct = profitPerShare.divide(buyPrice, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-                    tx.setPnlPercent(pnlPct);
+        // Calculate realized PnL if filled
+        if (status == OrderStatus.FILLED) {
+            List<TransactionRecordEntity> buys = transactionRepo.findByUserIdAndSymbolOrderByExecutedAtDesc(uid, sym);
+            for (var b : buys) {
+                if (b.getSide() == OrderSide.BUY && b.getStatus() == OrderStatus.FILLED && b.getClosedAt() == null) {
+                    BigDecimal buyPrice = b.getExecutionPrice();
+                    BigDecimal profitPerShare = execPrice.subtract(buyPrice);
+                    BigDecimal totalRealized = profitPerShare.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
+                    tx.setRealizedPnlUsd(totalRealized);
+                    if (buyPrice.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal pnlPct = profitPerShare.divide(buyPrice, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+                        tx.setPnlPercent(pnlPct);
+                    }
+                    b.setClosedAt(Instant.now());
+                    transactionRepo.save(b);
+                    break;
                 }
-                b.setClosedAt(Instant.now());
-                transactionRepo.save(b);
-                break;
             }
         }
 
         transactionRepo.save(tx);
 
-        log.info("Executed Robinhood Stock SELL for {} (Qty={}, Price=${}, Mode={}, OrderId={})",
-                sym, quantity, execPrice, mode, orderId);
+        log.info("Executed Robinhood Stock SELL for {} (Qty={}, Price=${}, Mode={}, OrderId={}, Status={})",
+                sym, quantity, execPrice, mode, orderId, status);
 
         return new RobinhoodStockOrderResult(
                 orderId,
@@ -1111,45 +1298,11 @@ public class RobinhoodStockTradingService {
                 quantity,
                 execPrice,
                 totalValue,
-                OrderStatus.FILLED,
+                status,
                 mode,
                 Instant.now(),
-                "Robinhood Stock Sell Executed Successfully"
+                notes
         );
-    }
-
-    /**
-     * Submits an actual equity market/limit order to Robinhood REST API.
-     */
-    private String submitRobinhoodEquitiesOrder(String token, String symbol, String side, BigDecimal qty, BigDecimal price, OrderType type) {
-        try {
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("symbol", symbol);
-            body.put("side", side.toLowerCase(Locale.ROOT));
-            body.put("quantity", qty.stripTrailingZeros().toPlainString());
-            body.put("type", type == OrderType.LIMIT ? "limit" : "market");
-            body.put("time_in_force", "gtc");
-            body.put("trigger", "immediate");
-            if (type == OrderType.LIMIT) {
-                body.put("price", price.setScale(2, RoundingMode.HALF_UP).toPlainString());
-            }
-
-            String resp = restClient.post()
-                    .uri(apiBaseUrl + "/orders/")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-
-            if (resp != null) {
-                JsonNode resJson = objectMapper.readTree(resp);
-                return resJson.path("id").asText("RH-ORD-" + UUID.randomUUID().toString().substring(0, 8));
-            }
-        } catch (Exception ex) {
-            log.warn("Robinhood live orders API call failed: {}", ex.getMessage());
-        }
-        return "RH-ORD-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     private String fetchSymbolFromInstrumentUrl(String instrumentUrl, String token) {

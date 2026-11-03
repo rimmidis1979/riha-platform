@@ -262,9 +262,10 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           orderType,
           executionMode
         );
+        const isQueued = res.status === 'WORKING' || res.status === 'PENDING';
         setStatusMessage({
           type: 'success',
-          text: `BUY order executed for ${orderQuantity} share(s) of ${selectedStockForOrder.symbol} at $${res.price.toFixed(2)} (${res.executionMode} Mode). Order ID: ${res.orderId}`,
+          text: `BUY order submitted for ${orderQuantity} share(s) of ${selectedStockForOrder.symbol} at $${res.price.toFixed(2)} (${res.executionMode} Mode). Status: ${isQueued ? 'QUEUED (Execution queued with Robinhood)' : res.status}. Robinhood Order ID: ${res.orderId}`,
         });
       } else {
         const res = await StockApiClient.sellRobinhoodStock(
@@ -274,9 +275,10 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
           orderType,
           executionMode
         );
+        const isQueued = res.status === 'WORKING' || res.status === 'PENDING';
         setStatusMessage({
           type: 'success',
-          text: `SELL order executed for ${orderQuantity} share(s) of ${selectedStockForOrder.symbol} at $${res.price.toFixed(2)} (${res.executionMode} Mode). Order ID: ${res.orderId}`,
+          text: `SELL order submitted for ${orderQuantity} share(s) of ${selectedStockForOrder.symbol} at $${res.price.toFixed(2)} (${res.executionMode} Mode). Status: ${isQueued ? 'QUEUED (Execution queued with Robinhood)' : res.status}. Robinhood Order ID: ${res.orderId}`,
         });
       }
       setSelectedStockForOrder(null);
