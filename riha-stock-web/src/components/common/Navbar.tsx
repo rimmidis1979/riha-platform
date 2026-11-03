@@ -8,11 +8,12 @@ import {
   LogOut,
   Flame,
   Layers,
+  Workflow,
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'account' | 'trending' | 'watchlist' | 'strategies';
-  setActiveTab: (tab: 'account' | 'trending' | 'watchlist' | 'strategies') => void;
+  activeTab: 'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution';
+  setActiveTab: (tab: 'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
@@ -82,6 +83,21 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                 <span>Strategy Diagnostics</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold uppercase tracking-wider">
                   Exclusive
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('agent-execution')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === 'agent-execution'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <Workflow className="w-4 h-4 text-purple-600" />
+                <span>Agent Execution</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold uppercase tracking-wider">
+                  Trace
                 </span>
               </button>
 

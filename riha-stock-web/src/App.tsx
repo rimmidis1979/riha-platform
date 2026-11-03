@@ -9,11 +9,12 @@ import { AccountPage } from './pages/AccountPage';
 import { TrendingStocksPage } from './pages/TrendingStocksPage';
 import { PersonalizedWatchlist } from './components/trending/PersonalizedWatchlist';
 import { StrategyAnalysisPage } from './pages/StrategyAnalysisPage';
+import { AgentExecutionTableView } from './pages/AgentExecutionTableView';
 import { ShieldCheck, Cpu } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'trending' | 'watchlist' | 'strategies'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'trending' | 'watchlist' | 'strategies' | 'agent-execution'>('account');
 
   if (isLoading) {
     return (
@@ -54,6 +55,15 @@ const MainAppContent: React.FC = () => {
 
         {activeTab === 'strategies' && (
           <StrategyAnalysisPage />
+        )}
+
+        {activeTab === 'agent-execution' && (
+          <AgentExecutionTableView
+            onNavigateToDiagnostics={(ticker) => {
+              sessionStorage.setItem('riha_selected_strategy_ticker', ticker);
+              setActiveTab('strategies');
+            }}
+          />
         )}
 
         {activeTab === 'watchlist' && (
