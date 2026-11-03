@@ -1037,12 +1037,16 @@ public class LiveMarketWebSocketAndStreamService {
             JsonNode forms = recent.path("form");
             JsonNode dates = recent.path("filingDate");
             JsonNode accessions = recent.path("accessionNumber");
+            JsonNode acceptanceDateTimes = recent.path("acceptanceDateTime");
             if (forms.isArray()) {
                 int limit = Math.min(5, forms.size());
                 for (int i = 0; i < limit; i++) {
                     String form = forms.get(i).asText("");
                     String date = dates.size() > i ? dates.get(i).asText("") : "";
                     String acc = accessions.size() > i ? accessions.get(i).asText("") : "";
+                    String acceptance = acceptanceDateTimes.size() > i ? acceptanceDateTimes.get(i).asText("") : "";
+                    String filingDateTime = formatSecAcceptanceDateTime(date, acceptance);
+
                     if (form.contains("S-3") || form.contains("424B5") || form.contains("ATM")) {
                         dilutionRisk = true;
                         s3OrAtm = true;
@@ -1051,7 +1055,8 @@ public class LiveMarketWebSocketAndStreamService {
                             acc,
                             form,
                             date,
-                            "Live SEC EDGAR Form " + form + " (" + date + ")",
+                            filingDateTime,
+                            "Live SEC EDGAR Form " + form + " (Released: " + filingDateTime + ")",
                             secEdgarUrl + "/Archives/edgar/data/" + Integer.parseInt(cik) + "/" + acc));
                 }
             }
@@ -1074,6 +1079,34 @@ public class LiveMarketWebSocketAndStreamService {
                     symbol,
                     ex);
         }
+    }
+
+    private String formatSecAcceptanceDateTime(String date, String acceptanceRaw) {
+        if (acceptanceRaw != null && !acceptanceRaw.isBlank()) {
+            try {
+                if (acceptanceRaw.contains("T")) {
+                    Instant inst = Instant.parse(acceptanceRaw);
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'EST'")
+                            .withZone(ZoneId.of("America/New_York"));
+                    return formatter.format(inst);
+                }
+                if (acceptanceRaw.length() == 14 && acceptanceRaw.chars().allMatch(Character::isDigit)) {
+                    DateTimeFormatter parser = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+                    java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(acceptanceRaw, parser);
+                    java.time.ZonedDateTime zdt = ldt.atZone(ZoneId.of("America/New_York"));
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'EST'");
+                    return formatter.format(zdt);
+                }
+            } catch (Exception ignored) {
+            }
+            return acceptanceRaw;
+        }
+        if (date != null && !date.isBlank()) {
+            return date.trim() + " 16:30:00 EST";
+        }
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'EST'")
+                .withZone(ZoneId.of("America/New_York"));
+        return formatter.format(Instant.now());
     }
 
     public List<LiveQuoteTechnicalsSnapshot> getLiveWatchlistSnapshots() {

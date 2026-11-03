@@ -20,7 +20,9 @@ import {
   Sliders,
   DollarSign,
   BarChart2,
+  Clock,
 } from 'lucide-react';
+import { formatReleaseDateTime } from '../../utils/dateTimeFormat';
 
 export interface StockDetailExecutionModalProps {
   isOpen: boolean;
@@ -142,49 +144,21 @@ export const StockDetailExecutionModal: React.FC<StockDetailExecutionModalProps>
         rvol,
       });
 
-      // 2. Real SEC Filings with official SEC EDGAR search links
-      setSecFilings([
-        {
-          formType: '10-Q',
-          filingDate: 'Quarterly Report',
-          description: `Form 10-Q Quarterly Report for period ended - ${ticker}`,
-          url: `https://www.sec.gov/edgar/searchedgar/companysearch?companyName=${encodeURIComponent(ticker)}`,
-        },
-        {
-          formType: '8-K',
-          filingDate: 'Current Report',
-          description: `Form 8-K Material Event Disclosure and Operating Telemetry - ${ticker}`,
-          url: `https://www.sec.gov/edgar/searchedgar/companysearch?companyName=${encodeURIComponent(ticker)}`,
-        },
-        {
-          formType: '10-K',
-          filingDate: 'Annual Filing',
-          description: `Form 10-K Comprehensive Annual Financial Audit - ${ticker}`,
-          url: `https://www.sec.gov/edgar/searchedgar/companysearch?companyName=${encodeURIComponent(ticker)}`,
-        },
-      ]);
+      // 2. Real SEC Filings with official SEC EDGAR search links & exact release date and time
+      try {
+        const liveFilings = await StockApiClient.getLiveSecFilings(ticker);
+        setSecFilings(liveFilings);
+      } catch (e) {
+        console.warn('Failed to load live SEC filings:', e);
+      }
 
-      // 3. Stock News Feed
-      setNewsFeed([
-        {
-          title: `${ticker} algorithmic order flow expands amid VWAP volume breakout`,
-          source: 'Market Ingestor Live Wire',
-          publishedAt: '35m ago',
-          url: `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}/news`,
-        },
-        {
-          title: `Institutional technical analysis and multi-factor conviction update for ${ticker}`,
-          source: 'RIHA Quant Intelligence',
-          publishedAt: '1h ago',
-          url: `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}`,
-        },
-        {
-          title: `SEC filing analysis and forward guidance revisions for ${ticker}`,
-          source: 'Regulatory Telemetry Feed',
-          publishedAt: '3h ago',
-          url: `https://www.sec.gov/edgar/searchedgar/companysearch?companyName=${encodeURIComponent(ticker)}`,
-        },
-      ]);
+      // 3. Stock News Feed with exact release date and time
+      try {
+        const liveNews = await StockApiClient.getLiveNews(ticker);
+        setNewsFeed(liveNews);
+      } catch (e) {
+        console.warn('Failed to load live news wire:', e);
+      }
 
       // 4. AI Strategy Breakdown / Scores
       const vwapAlign = livePrice >= openPrice;
@@ -430,14 +404,17 @@ export const StockDetailExecutionModal: React.FC<StockDetailExecutionModalProps>
                     key={idx}
                     className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-start justify-between gap-3 text-xs"
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-800/60">
                           {filing.formType}
                         </span>
-                        <span className="text-slate-300 font-semibold text-[11px]">{filing.filingDate}</span>
+                        <span className="text-amber-400 font-mono text-[11px] font-semibold flex items-center gap-1 tabular-nums">
+                          <Clock className="w-3 h-3 text-amber-400/80 shrink-0" />
+                          <span>Released: {filing.filingDate}</span>
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">{filing.description}</p>
+                      <p className="text-[11px] text-slate-300 mt-1 line-clamp-1">{filing.description}</p>
                     </div>
                     <a
                       href={filing.url}
@@ -459,7 +436,7 @@ export const StockDetailExecutionModal: React.FC<StockDetailExecutionModalProps>
                   <Newspaper className="w-3.5 h-3.5 text-blue-400" />
                   Live Stock Catalyst &amp; News Wire
                 </h4>
-                <span className="text-[10px] text-slate-500 font-mono">Real-time</span>
+                <span className="text-[10px] text-slate-500 font-mono">Real-time Feed</span>
               </div>
 
               <div className="space-y-2">
@@ -468,12 +445,15 @@ export const StockDetailExecutionModal: React.FC<StockDetailExecutionModalProps>
                     key={idx}
                     className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-start justify-between gap-3 text-xs"
                   >
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <h5 className="font-semibold text-slate-200 text-[11px] leading-snug">{news.title}</h5>
-                      <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
-                        <span className="text-indigo-400">{news.source}</span>
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400 flex-wrap">
+                        <span className="text-indigo-400 font-semibold">{news.source}</span>
                         <span>•</span>
-                        <span>{news.publishedAt}</span>
+                        <span className="text-emerald-400 font-mono font-semibold flex items-center gap-1 tabular-nums">
+                          <Clock className="w-3 h-3 text-emerald-400/80 shrink-0" />
+                          <span>Released: {news.publishedAt}</span>
+                        </span>
                       </div>
                     </div>
                     {news.url && (

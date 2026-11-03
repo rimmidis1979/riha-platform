@@ -51,10 +51,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     selectedProvider === 'ROBINHOOD_STOCKS'
       ? 'Robinhood Equities'
       : selectedProvider === 'ROBINHOOD_CRYPTO'
-      ? 'Robinhood Crypto (MCP)'
-      : selectedProvider === 'CHARLES_SCHWAB'
-      ? 'Charles Schwab'
-      : 'Consolidated Ledger';
+        ? 'Robinhood Crypto (MCP)'
+        : selectedProvider === 'CHARLES_SCHWAB'
+          ? 'Charles Schwab'
+          : 'Consolidated Ledger';
 
   const navGroups = [
     {
@@ -95,9 +95,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           description: 'High-conviction shortlisted tickers',
           icon: (
             <Star
-              className={`w-4 h-4 shrink-0 ${
-                personalizedWatchlist.length > 0 ? 'text-amber-400 fill-amber-400' : ''
-              }`}
+              className={`w-4 h-4 shrink-0 ${personalizedWatchlist.length > 0 ? 'text-amber-400 fill-amber-400' : ''
+                }`}
             />
           ),
           badge: personalizedWatchlist.length > 0 ? String(personalizedWatchlist.length) : undefined,
@@ -152,15 +151,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Main Sidebar Container (collapsible from 256px to 80px on desktop) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 bg-[#0d121f] border-r border-slate-800/90 flex flex-col transition-all duration-300 ease-in-out lg:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${isCollapsed ? 'lg:w-20 w-64' : 'w-64'} shadow-2xl lg:shadow-none`}
+        className={`fixed top-0 bottom-0 left-0 z-50 bg-[#0d121f] border-r border-slate-800/90 flex flex-col transition-all duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          } ${isCollapsed ? 'lg:w-20 w-64' : 'w-64'} shadow-2xl lg:shadow-none`}
       >
         {/* Brand Header */}
         <div
-          className={`h-16 px-4 border-b border-slate-800/80 flex items-center bg-[#0b0f19]/80 backdrop-blur-md ${
-            isCollapsed ? 'justify-center' : 'justify-between'
-          }`}
+          className={`h-16 px-4 border-b border-slate-800/80 flex items-center bg-[#0b0f19]/80 backdrop-blur-md ${isCollapsed ? 'justify-center' : 'justify-between'
+            }`}
         >
           <button
             onClick={() => handleNav('account')}
@@ -242,21 +239,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     key={item.id}
                     onClick={() => handleNav(item.id)}
                     title={isCollapsed ? `${item.label} — ${item.description}` : undefined}
-                    className={`w-full flex items-center ${
-                      isCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2'
-                    } rounded-xl text-xs font-semibold transition-all duration-150 group text-left relative ${
-                      isActive
+                    className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2'
+                      } rounded-xl text-xs font-semibold transition-all duration-150 group text-left relative ${isActive
                         ? 'bg-gradient-to-r from-indigo-600/25 via-indigo-600/10 to-transparent text-white border-l-[3px] border-indigo-500 shadow-xs'
                         : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-indigo-500/20 text-indigo-400'
-                            : 'bg-slate-800/40 text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-800/80'
-                        }`}
+                        className={`p-1.5 rounded-lg transition-colors ${isActive
+                          ? 'bg-indigo-500/20 text-indigo-400'
+                          : 'bg-slate-800/40 text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-800/80'
+                          }`}
                       >
                         {item.icon}
                       </div>
@@ -272,19 +266,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div className="flex items-center gap-1.5 shrink-0 ml-1">
                         {item.badge && (
                           <span
-                            className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md border ${
-                              item.badgeColor || 'bg-slate-800 text-slate-400 border-slate-700'
-                            }`}
+                            className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md border ${item.badgeColor || 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}
                           >
                             {item.badge}
                           </span>
                         )}
                         <ChevronRight
-                          className={`w-3.5 h-3.5 transition-transform ${
-                            isActive
-                              ? 'text-indigo-400'
-                              : 'text-slate-500 group-hover:text-slate-300 group-hover:translate-x-0.5'
-                          }`}
+                          className={`w-3.5 h-3.5 transition-transform ${isActive
+                            ? 'text-indigo-400'
+                            : 'text-slate-500 group-hover:text-slate-300 group-hover:translate-x-0.5'
+                            }`}
                         />
                       </div>
                     )}
@@ -333,9 +325,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* User Profile & Collapse Toggle Strip */}
         <div
-          className={`p-3 border-t border-slate-800/80 bg-[#0b0f19]/80 flex items-center ${
-            isCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between gap-2'
-          }`}
+          className={`p-3 border-t border-slate-800/80 bg-[#0b0f19]/80 flex items-center ${isCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between gap-2'
+            }`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             {user?.avatar ? (

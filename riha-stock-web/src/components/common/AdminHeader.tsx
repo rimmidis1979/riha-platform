@@ -107,39 +107,39 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     icon: React.ReactNode;
     colorClasses: string;
   }[] = [
-    {
-      id: 'ROBINHOOD_STOCKS',
-      label: 'Robinhood Live API',
-      sublabel: 'Equities, Direct Orders & Live Holdings',
-      badge: 'LIVE REST',
-      icon: <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />,
-      colorClasses: 'border-emerald-800/80 bg-emerald-950/70 text-emerald-300',
-    },
-    {
-      id: 'ROBINHOOD_CRYPTO',
-      label: 'Robinhood Crypto (MCP)',
-      sublabel: 'Model Context Protocol Server Feeds',
-      badge: 'MCP SERVER',
-      icon: <Zap className="w-3.5 h-3.5 text-emerald-400 fill-emerald-500" />,
-      colorClasses: 'border-emerald-800/80 bg-emerald-950/70 text-emerald-300',
-    },
-    {
-      id: 'CHARLES_SCHWAB',
-      label: 'Charles Schwab API',
-      sublabel: 'Trader OAuth 2.0 Margin & Equities',
-      badge: 'SCHWAB API',
-      icon: <Landmark className="w-3.5 h-3.5 text-sky-400" />,
-      colorClasses: 'border-sky-800/80 bg-sky-950/70 text-sky-300',
-    },
-    {
-      id: 'CONSOLIDATED',
-      label: 'Consolidated Portfolio',
-      sublabel: 'Unified Ledger across All Active Brokers',
-      badge: 'MULTI-BROKER',
-      icon: <Layers className="w-3.5 h-3.5 text-indigo-400" />,
-      colorClasses: 'border-indigo-800/80 bg-indigo-950/70 text-indigo-300',
-    },
-  ];
+      {
+        id: 'ROBINHOOD_STOCKS',
+        label: 'Robinhood Live API',
+        sublabel: 'Equities, Direct Orders & Live Holdings',
+        badge: 'LIVE REST',
+        icon: <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />,
+        colorClasses: 'border-emerald-800/80 bg-emerald-950/70 text-emerald-300',
+      },
+      {
+        id: 'ROBINHOOD_CRYPTO',
+        label: 'Robinhood Crypto (MCP)',
+        sublabel: 'Model Context Protocol Server Feeds',
+        badge: 'MCP SERVER',
+        icon: <Zap className="w-3.5 h-3.5 text-emerald-400 fill-emerald-500" />,
+        colorClasses: 'border-emerald-800/80 bg-emerald-950/70 text-emerald-300',
+      },
+      {
+        id: 'CHARLES_SCHWAB',
+        label: 'Charles Schwab API',
+        sublabel: 'Trader OAuth 2.0 Margin & Equities',
+        badge: 'SCHWAB API',
+        icon: <Landmark className="w-3.5 h-3.5 text-sky-400" />,
+        colorClasses: 'border-sky-800/80 bg-sky-950/70 text-sky-300',
+      },
+      {
+        id: 'CONSOLIDATED',
+        label: 'Consolidated Portfolio',
+        sublabel: 'Unified Ledger across All Active Brokers',
+        badge: 'MULTI-BROKER',
+        icon: <Layers className="w-3.5 h-3.5 text-indigo-400" />,
+        colorClasses: 'border-indigo-800/80 bg-indigo-950/70 text-indigo-300',
+      },
+    ];
 
   const currentProvider =
     providerConfigs.find((p) => p.id === selectedProvider) || providerConfigs[0];
@@ -183,9 +183,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             </div>
 
             <ChevronDown
-              className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
-                isProviderDropdownOpen ? 'rotate-180 text-indigo-400' : 'group-hover:text-slate-200'
-              }`}
+              className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isProviderDropdownOpen ? 'rotate-180 text-indigo-400' : 'group-hover:text-slate-200'
+                }`}
             />
           </button>
 
@@ -208,11 +207,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                       setSelectedProvider(prov.id);
                       setIsProviderDropdownOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all font-mono text-xs ${
-                      isSelected
-                        ? 'bg-indigo-600/20 text-white border border-indigo-500/50'
-                        : 'text-slate-300 hover:bg-slate-800/70 border border-transparent'
-                    }`}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all font-mono text-xs ${isSelected
+                      ? 'bg-indigo-600/20 text-white border border-indigo-500/50'
+                      : 'text-slate-300 hover:bg-slate-800/70 border border-transparent'
+                      }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="p-1.5 rounded-lg bg-slate-800 border border-slate-700">
@@ -277,13 +275,12 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           title="US Equity Trading Hours Status (EST)"
         >
           <span
-            className={`w-2 h-2 rounded-full ${
-              marketStatus.color === 'emerald'
-                ? 'bg-emerald-400 animate-pulse'
-                : marketStatus.color === 'amber'
+            className={`w-2 h-2 rounded-full ${marketStatus.color === 'emerald'
+              ? 'bg-emerald-400 animate-pulse'
+              : marketStatus.color === 'amber'
                 ? 'bg-amber-400'
                 : 'bg-slate-500'
-            }`}
+              }`}
           />
           <span className="text-[11px] font-bold text-slate-300">
             {marketStatus.label}

@@ -36,6 +36,14 @@ public class SentimentNewsController {
         return ResponseEntity.ok(sentimentService.getTickerSentimentScore(ticker));
     }
 
+    @GetMapping("/ticker/{ticker}/news")
+    @Operation(summary = "Get recent breaking news wire articles and releases with timestamp for a ticker")
+    public ResponseEntity<List<ScoredCatalystRecord>> getTickerNews(
+            @PathVariable String ticker,
+            @RequestParam(defaultValue = "5") int limit) {
+        return ResponseEntity.ok(sentimentService.getNewsForTicker(ticker, limit));
+    }
+
     @GetMapping("/catalysts/breaking")
     @Operation(summary = "Get breaking high-impact news catalysts detected across US equities within the past 60 minutes")
     public ResponseEntity<List<ScoredCatalystRecord>> getBreakingCatalysts(

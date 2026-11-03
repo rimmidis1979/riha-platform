@@ -16,9 +16,12 @@ public record SecFilingCatalystRecord(
             String accessionNumber,
             String formType,
             String filingDate,
+            String filingDateTime,
             String description,
             String documentUrl
     ) {
+        public FilingEntry(String accessionNumber, String formType, String filingDate, String description, String documentUrl) {
+            this(accessionNumber, formType, filingDate, filingDate, description, documentUrl);
+        }
     }
 }
-

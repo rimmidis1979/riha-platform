@@ -12,7 +12,9 @@ import {
   Zap,
   Target,
   ShieldAlert,
+  Clock,
 } from 'lucide-react';
+import { formatReleaseDateTime } from '../../utils/dateTimeFormat';
 
 interface TrendingStockCardProps {
   stock: TrendingStock;
@@ -143,12 +145,39 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
 
         {/* SEC Filing / Catalyst Tag */}
         {stock.recentFiling && (
-          <div className="mt-3 flex items-start gap-2 p-2 rounded-lg bg-amber-950/40 border border-amber-800/50 text-xs text-amber-300">
-            <FileText className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-            <div className="leading-tight">
-              <span className="font-bold text-amber-200">SEC {stock.recentFiling.formType}: </span>
-              <span className="text-[11px] text-amber-300/90">{stock.recentFiling.title}</span>
+          <div className="mt-3 p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/50 text-xs text-amber-300 space-y-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 font-bold text-amber-200">
+                <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>SEC {stock.recentFiling.formType}</span>
+              </div>
+              {stock.recentFiling.filingDate && (
+                <span className="text-[10px] font-mono text-amber-400/90 font-semibold flex items-center gap-1 tabular-nums">
+                  <Clock className="w-2.5 h-2.5 text-amber-400" />
+                  <span>Released: {formatReleaseDateTime(stock.recentFiling.filingDate)}</span>
+                </span>
+              )}
             </div>
+            <p className="text-[11px] text-amber-300/90 line-clamp-1">{stock.recentFiling.title}</p>
+          </div>
+        )}
+
+        {/* Live News Wire Release */}
+        {stock.recentNews && (
+          <div className="mt-2.5 p-2.5 rounded-xl bg-blue-950/30 border border-blue-800/40 text-xs text-blue-200 space-y-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 font-bold text-blue-300">
+                <Zap className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>{stock.recentNews.source || 'News Wire'}</span>
+              </div>
+              {stock.recentNews.publishedAt && (
+                <span className="text-[10px] font-mono text-emerald-400 font-semibold flex items-center gap-1 tabular-nums">
+                  <Clock className="w-2.5 h-2.5 text-emerald-400" />
+                  <span>Released: {formatReleaseDateTime(stock.recentNews.publishedAt)}</span>
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-300 line-clamp-1">{stock.recentNews.headline}</p>
           </div>
         )}
       </div>
