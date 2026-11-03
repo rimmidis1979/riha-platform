@@ -11,6 +11,7 @@ import {
 import { LoginHistoryItem } from '../types/auth';
 import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from '../components/trading/StrategicLoopConfigModal';
 import { StockDetailExecutionModal } from '../components/trading/StockDetailExecutionModal';
+import { getStockName, TickerHoverLabel } from '../utils/stockNames';
 import {
   ShieldCheck,
   History,
@@ -553,14 +554,23 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                         return (
                           <tr key={loop.ticker} className="hover:bg-slate-800/30 transition-colors">
                             <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-white text-xs">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  title={`${loop.ticker} — ${getStockName(loop.ticker)}`}
+                                  className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-white text-xs cursor-pointer hover:scale-105 transition-transform"
+                                >
                                   {loop.ticker}
                                 </div>
                                 <div>
-                                  <div className="font-bold text-white">{loop.ticker}</div>
-                                  <div className="text-[10px] text-slate-400 font-sans">
-                                    {loop.ownedShares ? `${loop.ownedShares} shares owned` : 'Radar watchlist'}
+                                  <TickerHoverLabel
+                                    ticker={loop.ticker}
+                                    badgeClassName="text-white text-sm"
+                                  />
+                                  <div
+                                    title={getStockName(loop.ticker)}
+                                    className="text-[10px] text-slate-400 font-sans cursor-pointer hover:text-slate-200"
+                                  >
+                                    {loop.ownedShares ? `${loop.ownedShares} shares owned` : getStockName(loop.ticker)}
                                   </div>
                                 </div>
                               </div>
@@ -738,7 +748,16 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                           </td>
 
                           <td className="py-3.5 px-4 font-bold text-white">
-                            {item.ticker}
+                            <TickerHoverLabel
+                              ticker={item.ticker}
+                              badgeClassName="text-white text-sm"
+                            />
+                            <div
+                              title={getStockName(item.ticker)}
+                              className="text-[10px] text-slate-400 font-sans truncate max-w-[120px] cursor-pointer hover:text-slate-200"
+                            >
+                              {getStockName(item.ticker)}
+                            </div>
                           </td>
 
                           <td className="py-3.5 px-4 text-slate-300 font-sans">
@@ -882,22 +901,32 @@ export const PlatformAuditHistoryPage: React.FC = () => {
                             </td>
 
                             <td className="py-3.5 px-4 font-bold text-white text-sm">
-                              {tx.ticker}
+                              <TickerHoverLabel
+                                ticker={tx.ticker}
+                                name={tx.companyName}
+                                badgeClassName="text-white text-sm"
+                              />
+                              <div
+                                title={getStockName(tx.ticker, tx.companyName)}
+                                className="text-[10px] text-slate-400 font-sans truncate max-w-[120px] cursor-pointer hover:text-slate-200"
+                              >
+                                {getStockName(tx.ticker, tx.companyName)}
+                              </div>
                             </td>
 
-                            <td className="py-3.5 px-4 text-right text-slate-300">
+                            <td className="py-3.5 px-4 text-right text-slate-300 font-mono tabular-nums">
                               {tx.quantity}
                             </td>
 
-                            <td className="py-3.5 px-4 text-right font-bold text-white">
+                            <td className="py-3.5 px-4 text-right font-bold text-white font-mono tabular-nums">
                               ${tx.orderPrice ? tx.orderPrice.toFixed(2) : '0.00'}
                             </td>
 
-                            <td className="py-3.5 px-4 text-right text-slate-300 font-bold">
+                            <td className="py-3.5 px-4 text-right text-slate-300 font-bold font-mono tabular-nums">
                               ${totalVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
 
-                            <td className="py-3.5 px-4 text-right font-bold">
+                            <td className="py-3.5 px-4 text-right font-bold font-mono tabular-nums">
                               {pnl !== 0 ? (
                                 <span className={pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}>
                                   {pnl > 0 ? '+' : ''}${pnl.toFixed(2)}

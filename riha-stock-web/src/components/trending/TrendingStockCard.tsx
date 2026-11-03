@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrendingStock } from '../../types/trending';
 import { useTrading } from '../../context/TradingContext';
+import { getStockName, TickerHoverLabel } from '../../utils/stockNames';
 import {
   TrendingUp,
   TrendingDown,
@@ -28,17 +29,29 @@ export const TrendingStockCard: React.FC<TrendingStockCardProps> = ({ stock }) =
         {/* Top Header: Ticker, Name, Sector, and Star Toggle */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#161d2d] flex items-center justify-center font-mono font-bold text-slate-200 text-sm border border-slate-700 group-hover:border-indigo-500 group-hover:bg-indigo-950/30 transition-colors">
+            <div
+              title={`${stock.symbol} — ${getStockName(stock.symbol, stock.companyName)}`}
+              className="w-11 h-11 rounded-xl bg-[#161d2d] flex items-center justify-center font-mono font-bold text-slate-200 text-sm border border-slate-700 group-hover:border-indigo-500 group-hover:bg-indigo-950/30 transition-colors cursor-pointer"
+            >
               {stock.symbol}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-slate-100 text-base font-mono">{stock.symbol}</h4>
+                <TickerHoverLabel
+                  ticker={stock.symbol}
+                  name={stock.companyName}
+                  badgeClassName="text-slate-100 text-base"
+                />
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono border border-slate-700">
                   {stock.sector}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 truncate max-w-[200px] mt-0.5">{stock.companyName}</p>
+              <p
+                title={getStockName(stock.symbol, stock.companyName)}
+                className="text-xs text-slate-400 truncate max-w-[200px] mt-0.5 cursor-pointer hover:text-slate-200"
+              >
+                {getStockName(stock.symbol, stock.companyName)}
+              </p>
             </div>
           </div>
 

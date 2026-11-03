@@ -93,6 +93,7 @@ export interface StockTradeTransaction {
   decisionId?: string;
   workflowInstanceId?: string;
   ticker: string;
+  companyName?: string;
   side: 'BUY' | 'SELL';
   executionMode: string;
   strategyName: string;

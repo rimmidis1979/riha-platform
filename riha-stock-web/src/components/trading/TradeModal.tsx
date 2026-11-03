@@ -98,7 +98,7 @@ export const TradeModal: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-100 font-mono">{selectedStockForTrade.symbol}</h3>
-                <span className="text-xs font-mono font-bold text-slate-300">
+                <span className="text-xs font-mono font-bold text-slate-300 tabular-nums">
                   ${selectedStockForTrade.currentPrice.toFixed(2)}
                 </span>
               </div>
@@ -223,11 +223,11 @@ export const TradeModal: React.FC = () => {
           <div className="p-3.5 rounded-xl bg-[#161d2d] border border-slate-800 space-y-1.5 text-xs font-mono">
             <div className="flex justify-between text-slate-400">
               <span>Execution Price:</span>
-              <span className="text-slate-200 font-bold">${effectivePrice.toFixed(2)}</span>
+              <span className="text-slate-200 font-bold tabular-nums">${effectivePrice.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-slate-400">
               <span>Estimated Total:</span>
-              <span className="text-slate-100 font-black text-sm">${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-slate-100 font-black text-sm tabular-nums">${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between text-slate-400 text-[11px] pt-1 border-t border-slate-700/60">
               <span>Commission:</span>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTrading } from '../../context/TradingContext';
 import { OrderSide } from '../../types/trading';
 import { History, Download, ArrowDownRight, ArrowUpRight, CheckCircle2, Clock } from 'lucide-react';
+import { getStockName, TickerHoverLabel } from '../../utils/stockNames';
 
 interface TradeHistoryTableProps {
   brokerFilter?: 'ALL' | 'ROBINHOOD' | 'CHARLES_SCHWAB';
@@ -169,22 +170,31 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({ brokerFilt
 
                     {/* Symbol */}
                     <td className="py-3.5 px-4">
-                      <div className="font-mono font-bold text-slate-100">{item.symbol}</div>
-                      <div className="text-xs text-slate-400 truncate max-w-[140px] font-sans">{item.companyName}</div>
+                      <TickerHoverLabel
+                        ticker={item.symbol}
+                        name={item.companyName}
+                        badgeClassName="font-mono font-bold text-slate-100"
+                      />
+                      <div
+                        title={getStockName(item.symbol, item.companyName)}
+                        className="text-xs text-slate-400 truncate max-w-[140px] font-sans cursor-pointer hover:text-slate-200"
+                      >
+                        {getStockName(item.symbol, item.companyName)}
+                      </div>
                     </td>
 
                     {/* Shares */}
-                    <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-200">
+                    <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-200 tabular-nums">
                       {item.shares.toLocaleString()}
                     </td>
 
                     {/* Price */}
-                    <td className="py-3.5 px-4 text-right font-mono text-slate-300">
+                    <td className="py-3.5 px-4 text-right font-mono text-slate-300 tabular-nums">
                       ${item.executionPrice.toFixed(2)}
                     </td>
 
                     {/* Total Value */}
-                    <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-100">
+                    <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-100 tabular-nums">
                       ${item.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 

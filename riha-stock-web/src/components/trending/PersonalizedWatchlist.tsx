@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTrading } from '../../context/TradingContext';
 import { Star, Plus, ArrowUpRight, ArrowDownRight, Zap, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
+import { getStockName, TickerHoverLabel } from '../../utils/stockNames';
 
 interface PersonalizedWatchlistProps {
   onExploreMore?: () => void;
@@ -67,13 +68,20 @@ export const PersonalizedWatchlist: React.FC<PersonalizedWatchlistProps> = ({ on
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-slate-100 text-lg">{stock.symbol}</span>
+                      <TickerHoverLabel
+                        ticker={stock.symbol}
+                        name={stock.companyName}
+                        badgeClassName="text-slate-100 text-lg font-bold"
+                      />
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono border border-slate-700">
                         {stock.sector}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-400 truncate max-w-[170px] mt-0.5 font-sans">
-                      {stock.companyName}
+                    <div
+                      title={getStockName(stock.symbol, stock.companyName)}
+                      className="text-xs text-slate-400 truncate max-w-[170px] mt-0.5 font-sans cursor-pointer hover:text-slate-200"
+                    >
+                      {getStockName(stock.symbol, stock.companyName)}
                     </div>
                   </div>
 

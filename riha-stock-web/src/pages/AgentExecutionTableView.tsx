@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { StrategyEngineService } from '../services/strategyEngineService';
 import { StockApiClient } from '../services/stockApiClient';
+import { getStockName, TickerHoverLabel } from '../utils/stockNames';
 
 export interface StrategyEvaluationStep {
   strategy_name: string;
@@ -81,7 +82,7 @@ export const AgentExecutionTableView: React.FC<AgentExecutionTableViewProps> = (
   initialTrace,
   onNavigateToDiagnostics,
 }) => {
-  const [selectedTicker, setSelectedTicker] = useState<string>('SMX');
+  const [selectedTicker, setSelectedTicker] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTrace, setActiveTrace] = useState<AgentExecutionTrace | null>(initialTrace || null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -100,8 +101,13 @@ export const AgentExecutionTableView: React.FC<AgentExecutionTableViewProps> = (
       try {
         const stocks = await StockApiClient.getRobinhoodStocks();
         if (stocks && stocks.length > 0) {
-          const symbols = Array.from(new Set(stocks.map((s) => s.symbol.toUpperCase())));
+          const symbols = Array.from(new Set(stocks.map((s: any) => s.symbol.toUpperCase())));
           setPortfolioStocks(symbols);
+          // Auto-select first real holding if none selected
+          if (!selectedTicker && !sessionStorage.getItem('riha_selected_strategy_ticker') && !initialTrace) {
+            setSelectedTicker(symbols[0]);
+            loadRealExecutionTrace(symbols[0]);
+          }
         }
       } catch (err) {
         console.warn('Could not fetch portfolio holdings for quick select:', err);
@@ -120,8 +126,6 @@ export const AgentExecutionTableView: React.FC<AgentExecutionTableViewProps> = (
     } else if (initialTrace) {
       setActiveTrace(initialTrace);
       setSelectedTicker(initialTrace.ticker);
-    } else {
-      loadRealExecutionTrace('SMX');
     }
   }, []);
 
@@ -381,24 +385,27 @@ export const AgentExecutionTableView: React.FC<AgentExecutionTableViewProps> = (
               </div>
             )}
 
-            {/* Popular Market Tickers */}
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] font-bold text-slate-400">Market:</span>
-              {['SMX', 'AAPL', 'NVDA', 'TSLA', 'MSFT'].map((ticker) => (
-                <button
-                  key={ticker}
-                  onClick={() => loadRealExecutionTrace(ticker)}
-                  disabled={isLoading}
-                  className={`px-2 py-1 text-xs font-mono font-bold rounded-lg transition-all ${
-                    selectedTicker === ticker
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {ticker}
-                </button>
-              ))}
-            </div>
+            {/* Real Portfolio Positions Quick Select (Zero-Mock Data) */}
+            {portfolioStocks.length > 0 && (
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-bold text-slate-400">Positions:</span>
+                {portfolioStocks.slice(0, 6).map((ticker) => (
+                  <button
+                    key={ticker}
+                    onClick={() => loadRealExecutionTrace(ticker)}
+                    disabled={isLoading}
+                    title={`${ticker} — ${getStockName(ticker)}`}
+                    className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg transition-all ${
+                      selectedTicker === ticker
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {ticker}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <button
               onClick={() => loadRealExecutionTrace(selectedTicker)}

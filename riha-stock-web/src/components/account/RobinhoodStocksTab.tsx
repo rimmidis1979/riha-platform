@@ -5,6 +5,7 @@ import { ComprehensiveStrategyReport } from '../../types/strategyDiagnostics';
 import { StrategyDiagnosticsModal } from '../trading/StrategyDiagnosticsModal';
 import { StrategicLoopConfigModal, StrategicLoopConfigTarget } from '../trading/StrategicLoopConfigModal';
 import { StockDetailExecutionModal } from '../trading/StockDetailExecutionModal';
+import { getStockName, TickerHoverLabel } from '../../utils/stockNames';
 import {
   TrendingUp,
   ArrowUpRight,
@@ -619,39 +620,47 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                         <tr key={stock.symbol} className="hover:bg-slate-800/40 transition-colors">
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-xl bg-emerald-950/70 border border-emerald-800/70 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
+                              <div
+                                title={`${stock.symbol} — ${getStockName(stock.symbol, stock.companyName)}`}
+                                className="w-9 h-9 rounded-xl bg-emerald-950/70 border border-emerald-800/70 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+                              >
                                 {stock.symbol.substring(0, 3)}
                               </div>
                               <div>
-                                <span className="font-bold text-white font-mono block leading-tight">
-                                  {stock.symbol}
-                                </span>
-                                <span className="text-xs text-slate-400 truncate max-w-[140px] block mt-0.5">
-                                  {stock.companyName}
+                                <TickerHoverLabel
+                                  ticker={stock.symbol}
+                                  name={stock.companyName}
+                                  badgeClassName="text-white text-sm"
+                                />
+                                <span
+                                  title={getStockName(stock.symbol, stock.companyName)}
+                                  className="text-xs text-slate-400 truncate max-w-[140px] block mt-0.5 cursor-pointer hover:text-slate-200"
+                                >
+                                  {getStockName(stock.symbol, stock.companyName)}
                                 </span>
                               </div>
                             </div>
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-200">
+                          <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-200 tabular-nums">
                             {stock.shares.toLocaleString()}
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono text-slate-400">
+                          <td className="py-3.5 px-4 text-right font-mono text-slate-400 tabular-nums">
                             ${stock.avgCost.toFixed(2)}
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
+                          <td className="py-3.5 px-4 text-right font-mono font-bold text-white tabular-nums">
                             ${stock.currentPrice.toFixed(2)}
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono font-black text-white">
+                          <td className="py-3.5 px-4 text-right font-mono font-black text-white tabular-nums">
                             ${stock.equity.toFixed(2)}
                           </td>
 
-                          <td className="py-3.5 px-4 text-right font-mono">
+                          <td className="py-3.5 px-4 text-right font-mono tabular-nums">
                             <div
-                              className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-md ${
+                              className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-md tabular-nums ${
                                 isPositive ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-800/60' : 'text-rose-400 bg-rose-950/70 border border-rose-800/60'
                               }`}
                             >
@@ -694,10 +703,10 @@ export const RobinhoodStocksTab: React.FC<RobinhoodStocksTabProps> = ({ onNaviga
                               return (
                                 <div className="flex flex-col items-center gap-1.5">
                                   <div className="flex items-center gap-1.5 font-mono">
-                                    <span className="font-bold text-slate-100 text-xs">
+                                    <span className="font-bold text-slate-100 text-xs tabular-nums">
                                       {formatVolNumber(stockVol)}
                                     </span>
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${volBadgeClass}`}>
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border tabular-nums ${volBadgeClass}`}>
                                       {rvol.toFixed(1)}x (20D)
                                     </span>
                                   </div>
